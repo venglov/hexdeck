@@ -11,7 +11,7 @@ import {
 } from "@decky/ui";
 import { addEventListener, definePlugin, removeEventListener, toaster } from "@decky/api";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BsHexagonFill, BsTrash3 } from "react-icons/bs";
+import { BsTrash3 } from "react-icons/bs";
 
 import {
   Capture,
@@ -40,6 +40,7 @@ import {
   takeOverHex,
   testDictation,
 } from "./api";
+import { HexDeckIcon } from "./HexDeckIcon";
 
 const toast = (body: string, title = "HexDeck") => toaster.toast({ title, body, duration: 3500 });
 
@@ -676,7 +677,7 @@ export default definePlugin(() => {
     name: "HexDeck",
     titleView: <div className={staticClasses.Title}>HexDeck</div>,
     content: <Content />,
-    icon: <BsHexagonFill />,
+    icon: <HexDeckIcon />,
     onDismount() {
       removeEventListener("hexdeck_event", listener);
     },

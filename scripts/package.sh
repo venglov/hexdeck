@@ -1,7 +1,7 @@
 #!/bin/sh
 # Build the frontend and write out/HexDeck.zip, the archive Decky's
 # "Install Plugin from ZIP" accepts: one HexDeck/ folder with plugin.json,
-# main.py, dist/index.js and the Python package.
+# main.py, the built frontend and the Python package.
 set -eu
 
 root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
@@ -15,8 +15,9 @@ test -f dist/index.js || { echo "dist/index.js is missing; run npm run build" >&
 stage=$(mktemp -d)
 trap 'rm -rf "$stage"' EXIT
 plugin="$stage/HexDeck"
-mkdir -p "$plugin/dist" "$plugin/py_modules/hexdeck"
+mkdir -p "$plugin/assets" "$plugin/dist" "$plugin/py_modules/hexdeck"
 cp plugin.json package.json main.py README.md LICENSE THIRD_PARTY_NOTICES.md "$plugin/"
+cp assets/hexdeck-banner.webp "$plugin/assets/"
 cp dist/index.js "$plugin/dist/"
 cp py_modules/hexdeck/*.py "$plugin/py_modules/hexdeck/"
 

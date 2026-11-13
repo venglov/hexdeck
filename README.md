@@ -1,3 +1,5 @@
+![HexDeck](assets/hexdeck-banner.webp)
+
 # HexDeck
 
 Local voice dictation in Steam Deck **Game Mode**, powered by
