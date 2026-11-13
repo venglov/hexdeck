@@ -77,6 +77,7 @@
         }, selectedOption === undefined ? h("option", { value: "" }, strDefaultLabel || "") : null,
           rgOptions.map((o) => h("option", { key: JSON.stringify(o.data), value: JSON.stringify(o.data) }, o.label)))),
       description ? h("div", { className: "desc" }, description) : null),
+    DialogButton: ({ children, onClick, disabled, style }) => h("button", { onClick, disabled, style: { ...style } }, children),
     ProgressBar: ({ nProgress }) => h("progress", nProgress === undefined ? {} : { max: 100, value: nProgress }),
   };
 

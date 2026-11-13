@@ -1,5 +1,6 @@
 import {
   ButtonItem,
+  DialogButton,
   DropdownItem,
   Field,
   PanelSection,
@@ -170,6 +171,14 @@ function LanguageRow({ model, language, choose }: { model: HexModel; language?: 
   );
 }
 
+/**
+ * Steam's inline ButtonItem gives its button a fixed width that, in the Quick
+ * Access panel, runs past the right edge (like ProgressBarWithInfo). The
+ * delete button sets its own width instead, and the Field's children column
+ * shrinks to it.
+ */
+const DELETE_BUTTON = { width: "92px", minWidth: "0", padding: "8px 0", flexShrink: 0 } as const;
+
 function DownloadedModels({ models, busy, reloadModels }: { models: HexModel[]; busy: boolean; reloadModels: () => void }) {
   const [confirming, setConfirming] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
@@ -208,19 +217,25 @@ function DownloadedModels({ models, busy, reloadModels }: { models: HexModel[]; 
             {model.selected || found ? (
               <Field label={model.name} description={description} />
             ) : (
-              <ButtonItem
+              <Field
                 label={model.name}
                 description={description}
-                layout="inline"
-                disabled={busy || removing !== null}
-                onClick={() => press(model)}
+                childrenLayout="inline"
+                childrenContainerWidth="min"
               >
-                {removing === model.id
-                  ? "Deleting…"
-                  : confirming === model.id
-                    ? "Confirm"
-                    : <BsTrash3 aria-label={`Delete ${model.name}`} style={{ display: "block", margin: "0 auto" }} />}
-              </ButtonItem>
+                <DialogButton
+                  aria-label={`Delete ${model.name}`}
+                  disabled={busy || removing !== null}
+                  onClick={() => press(model)}
+                  style={DELETE_BUTTON}
+                >
+                  {removing === model.id
+                    ? "Deleting…"
+                    : confirming === model.id
+                      ? "Confirm"
+                      : <BsTrash3 style={{ display: "block", margin: "0 auto" }} />}
+                </DialogButton>
+              </Field>
             )}
           </PanelSectionRow>
         );
