@@ -1,0 +1,119 @@
+#!/usr/bin/env python3
+"""A stand-in for the ``hex`` executable, driven by files in $HOME.
+
+``hex service`` writes a pid file and sleeps; every other command answers as
+the real CLI would (JSON on stdout, Hex's exit codes) and is logged to
+``$HOME/calls.log``.
+"""
+
+import json
+import os
+import signal
+import sys
+import time
+
+home = os.environ["HOME"]
+state_path = os.path.join(home, "fake-state.json")
+pid_path = os.path.join(home, "service.pid")
+
+
+def load():
+    try:
+        with open(state_path) as stream:
+            return json.load(stream)
+    except (OSError, ValueError):
+        return {"recording": False, "model": "parakeet_v3", "installed": ["parakeet_v3"],
+                "settings": {"indicator_position": "top", "sound_effects": True,
+                             "dictation_hotkey": "option+space"}}
+
+
+def save(state):
+    with open(state_path, "w") as stream:
+        json.dump(state, stream)
+
+
+def running():
+    try:
+        with open(pid_path) as stream:
+            os.kill(int(stream.read()), 0)
+        return True
+    except (OSError, ValueError):
+        return False
+
+
+def reply(code, **fields):
+    print(json.dumps({"version": 4, **fields}))
+    sys.exit(code)
+
+
+args = [a for a in sys.argv[1:] if a != "--json"]
+with open(os.path.join(home, "calls.log"), "a") as log:
+    log.write(" ".join(args) + f" DISPLAY={os.environ.get('DISPLAY')}\n")
+
+if args == ["--version"]:
+    print("hex 3.4.0")
+    sys.exit(0)
+
+if args == ["service"]:
+    with open(pid_path, "w") as stream:
+        stream.write(str(os.getpid()))
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+    while os.path.exists(pid_path):
+        time.sleep(0.05)
+    sys.exit(0)
+
+if not running():
+    reply(3, status="error", code="not-running", message="Hex isn't running")
+
+state = load()
+if args == ["status"]:
+    reply(0, status="status", listener={"running": True, "status": "Listening"},
+          capture={"state": "recording" if state["recording"] else "idle", "pending_jobs": 0},
+          model={"id": state["model"], "name": state["model"], "language": "en",
+                 "installed": True, "preparing": None, "downloaded_bytes": 0})
+if args == ["quit", "--force"]:
+    os.unlink(pid_path)
+    reply(0, status="done", message="Quit", changed=True)
+if args[:1] == ["dictation"]:
+    action = args[1]
+    if action == "start":
+        state["recording"] = True
+        save(state)
+        reply(0, status="done", message="Recording", changed=True)
+    if action == "cancel":
+        state["recording"] = False
+        save(state)
+        reply(0, status="done", message="Cancelled", changed=True)
+    if action == "stop":
+        was = state["recording"]
+        state["recording"] = False
+        save(state)
+        if "--print" in args:
+            if not was:
+                reply(1, status="error", code="not-recording", message="Nothing is recording")
+            reply(0, status="transcript", text="Hello from Hex.")
+        reply(0, status="done", message="Transcribing", changed=True)
+if args[:2] == ["model", "list"]:
+    reply(0, status="models", models=[
+        {"id": "parakeet_v3", "name": "Parakeet V3", "languages": ["en", "de"], "size": "478 MB",
+         "installed": "parakeet_v3" in state["installed"], "selected": state["model"] == "parakeet_v3"},
+        {"id": "whisper_large_v3_turbo", "name": "Whisper Large V3 Turbo", "languages": ["en"],
+         "size": "1.6 GB", "installed": "whisper_large_v3_turbo" in state["installed"],
+         "selected": state["model"] == "whisper_large_v3_turbo"},
+    ])
+if args[:2] in (["model", "use"], ["model", "install"]):
+    state["model"] = args[2]
+    if args[1] == "install":
+        state["installed"].append(args[2])
+    save(state)
+    reply(0, status="done", message=f"Using {args[2]}", changed=True)
+if args[:2] == ["settings", "get"]:
+    key = args[2]
+    reply(0, status="settings", settings=[{"key": key, "value": state["settings"].get(key)}])
+if args[:2] == ["settings", "set"]:
+    state["settings"][args[2]] = args[3]
+    save(state)
+    reply(0, status="done", message="Saved", changed=True)
+if args[:1] == ["history"]:
+    reply(0, status="history", entries=[{"text": "Hello from Hex."}])
+reply(2, status="error", code="usage", message="unknown command " + " ".join(args))
