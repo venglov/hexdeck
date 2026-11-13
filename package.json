@@ -1,6 +1,6 @@
 {
   "name": "hexdeck",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Hex voice dictation for Steam Deck Game Mode: pick the model and the controller binding from the Quick Access Menu.",
   "type": "module",
   "scripts": {
