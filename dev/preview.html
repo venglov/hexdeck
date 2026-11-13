@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HexDeck panel preview</title>
+<!--
+  Renders dist/index.js outside Steam: React from a CDN, minimal stand-ins
+  for @decky/ui components, and a mock backend behind @decky/api.
+  Run `npm run build`, then `python3 -m http.server 8765` in the plugin
+  folder and open http://localhost:8765/dev/preview.html
+-->
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #0e141b; color: #dcdedf; font: 14px/1.35 "Motiva Sans", Arial, sans-serif; }
+  #qam { width: 352px; margin: 16px auto; background: #1a1f27; border-radius: 6px; padding-bottom: 16px; }
+  .title { font-weight: 700; font-size: 16px; padding: 14px 16px 6px; }
+  .section { padding: 8px 16px 4px; }
+  .section-title { text-transform: uppercase; font-size: 11px; letter-spacing: .06em; color: #8b929a; margin: 10px 0 6px; font-weight: 700; }
+  .row { padding: 6px 0; border-bottom: 1px solid #23262e; }
+  .field { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+  .label { color: #fff; }
+  .desc { font-size: 12px; color: #8b929a; margin-top: 2px; }
+  button { width: 100%; padding: 8px; background: #3d4450; color: #fff; border: 0; border-radius: 2px; cursor: pointer; font: inherit; }
+  button:disabled { opacity: .5; }
+  select { background: #3d4450; color: #fff; border: 0; padding: 4px; max-width: 170px; }
+  progress { width: 100%; }
+  #toasts { position: fixed; right: 16px; bottom: 16px; display: grid; gap: 8px; width: 300px; }
+  .toast { background: #23262e; border-left: 3px solid #1a9fff; padding: 8px 10px; border-radius: 3px; }
+  #controls { width: 352px; margin: 0 auto; font-size: 12px; color: #8b929a; display: flex; gap: 6px; flex-wrap: wrap; }
+  #controls button { width: auto; padding: 4px 8px; font-size: 12px; }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+</head>
+<body>
+<div id="qam"></div>
+<div id="controls">
+  Simulate:
+  <button id="hold">Hold binding</button>
+  <button id="release">Release binding</button>
+  <button id="uninstall">Hex not installed</button>
+  <button id="external">External Hex</button>
+</div>
+<div id="toasts"></div>
+<script>
+  const h = React.createElement;
+  window.SP_REACT = React;
+  window.SP_REACTDOM = ReactDOM;
+
+  // --- @decky/ui stand-ins ---------------------------------------------------
+  const Row = ({ children }) => h("div", { className: "row" }, children);
+  const Field = ({ label, description, children }) => h("div", null,
+    h("div", { className: "field" }, h("span", { className: "label" }, label), children ? h("span", null, children) : null),
+    description ? h("div", { className: "desc" }, description) : null);
+  window.DFL = {
+    staticClasses: { Title: "title" },
+    PanelSection: ({ title, children }) => h("div", { className: "section" }, title ? h("div", { className: "section-title" }, title) : null, children),
+    PanelSectionRow: Row,
+    Field,
+    ButtonItem: ({ children, onClick, disabled }) => h("button", { onClick, disabled }, children),
+    ToggleField: ({ label, description, checked, onChange }) => h("label", null,
+      h("div", { className: "field" }, h("span", { className: "label" }, label),
+        h("input", { type: "checkbox", checked: !!checked, onChange: (e) => onChange(e.target.checked) })),
+      description ? h("div", { className: "desc" }, description) : null),
+    DropdownItem: ({ label, description, rgOptions, selectedOption, onChange, strDefaultLabel }) => h("div", null,
+      h("div", { className: "field" }, h("span", { className: "label" }, label),
+        h("select", {
+          value: selectedOption === undefined ? "" : JSON.stringify(selectedOption),
+          onChange: (e) => onChange(rgOptions.find((o) => JSON.stringify(o.data) === e.target.value)),
+        }, selectedOption === undefined ? h("option", { value: "" }, strDefaultLabel || "") : null,
+          rgOptions.map((o) => h("option", { key: JSON.stringify(o.data), value: JSON.stringify(o.data) }, o.label)))),
+      description ? h("div", { className: "desc" }, description) : null),
+    ProgressBarWithInfo: ({ label, nProgress, sOperationText }) => h("div", null,
+      h("div", { className: "label" }, label),
+      h("progress", nProgress === undefined ? {} : { max: 100, value: nProgress }),
+      h("div", { className: "desc" }, sOperationText)),
+  };
+
+  // --- Mock backend ----------------------------------------------------------
+  const listeners = {};
+  const emit = (payload) => (listeners.hexdeck_event || []).forEach((fn) => fn(payload));
+  const mock = {
+    installed: true, external: false, recording: false, capture: null,
+    config: { enabled: true, binding: ["L4", "R4"], trigger_mode: "hold", output: "paste", press_enter: false,
+              min_hold_ms: 300, display: "auto", hide_hex_pill: true, notifications: true, hex_path: "" },
+    model: { id: "parakeet_v3", language: "en" }, preparing: null, downloaded: 0,
+    installed_models: ["parakeet_v3"], hex: { dictation_hotkey: "option+space", sound_effects: true },
+    last_text: "", install: { state: "idle", stage: "", error: "", version: "", received: 0, total: 0 },
+  };
+  const MODELS = [
+    { id: "parakeet_v3", name: "Parakeet V3", languages: ["en", "de", "fr", "es"], size: "478 MB" },
+    { id: "whisper_large_v3_turbo", name: "Whisper Large V3 Turbo", languages: ["auto", "en", "ja", "ru"], size: "1.6 GB" },
+    { id: "whisper_small", name: "Whisper Small", languages: ["auto", "en"], size: "190 MB" },
+  ];
+  const backend = {
+    get_state: () => ({
+      version: "0.1.0", config: mock.config,
+      session: { kind: "gamescope", display: ":1", reason: "Gamescope's main Xwayland" },
+      hex: { installed: mock.installed, path: mock.installed ? "/home/deck/.local/bin/hex" : null, version: mock.installed ? "3.4.0" : null,
+             running: mock.installed, owned: !mock.external, external: mock.external, service_error: "",
+             listener: "Listening", capture: mock.recording ? "recording" : "idle",
+             model: { id: mock.model.id, name: MODELS.find((m) => m.id === mock.model.id).name, language: mock.model.language,
+                      installed: true, preparing: mock.preparing, downloaded_bytes: mock.downloaded, error: null },
+             log: "/home/deck/homebrew/logs/HexDeck/hex-service.log" },
+      controller: { device: "/dev/hidraw2", error: "", held: mock.recording ? mock.config.binding : [] },
+      install: mock.install, phase: mock.recording ? "recording" : "idle", last_text: mock.last_text, last_error: "",
+      keyboard_shortcuts: [["option+space", "Alt + Space"], ["control+space", "Ctrl + Space"], ["f9", "F9"]].map(([value, label]) => ({ value, label })),
+    }),
+    set_config: (key, value) => { mock.config[key] = value; return { ok: true, key, value }; },
+    list_models: () => ({ ok: true, models: MODELS.map((m) => ({ ...m, installed: mock.installed_models.includes(m.id), selected: m.id === mock.model.id })) }),
+    select_model: (id, language) => {
+      const installed = mock.installed_models.includes(id);
+      mock.model = { id, language: language || MODELS.find((m) => m.id === id).languages[0] };
+      if (!installed) {
+        mock.preparing = id; mock.downloaded = 0;
+        const timer = setInterval(() => {
+          mock.downloaded += 180e6;
+          if (mock.downloaded >= 1.6e9) { clearInterval(timer); mock.preparing = null; mock.installed_models.push(id); }
+        }, 500);
+      }
+      return { ok: true, downloading: !installed };
+    },
+    cancel_model_download: () => { mock.preparing = null; return { ok: true }; },
+    get_hex_settings: () => ({ ok: true, settings: { ...mock.hex } }),
+    set_hex_setting: (key, value) => { mock.hex[key] = key === "sound_effects" ? value === "on" : value; return { ok: true }; },
+    install_hex: () => {
+      mock.install = { state: "running", stage: "Downloading Hex 3.4.0", error: "", version: "3.4.0", received: 0, total: 9e7 };
+      const timer = setInterval(() => {
+        mock.install = { ...mock.install, received: mock.install.received + 2e7 };
+        if (mock.install.received >= 9e7) { clearInterval(timer); mock.install = { ...mock.install, state: "done" }; mock.installed = true; emit({ kind: "installed", version: "3.4.0", notify: true }); }
+      }, 400);
+      return { ok: true };
+    },
+    take_over_hex: () => { mock.external = false; return { ok: true }; },
+    restart_hex: () => ({ ok: true }),
+    test_dictation: (seconds) => new Promise((resolve) => setTimeout(() => resolve({ ok: true, text: "Hello from the preview." }), seconds * 250)),
+    start_binding_capture: () => {
+      const t0 = Date.now();
+      mock.capture = () => {
+        const dt = Date.now() - t0;
+        if (dt < 500) return { phase: "release", buttons: [], error: "" };
+        if (dt < 1200) return { phase: "listening", buttons: [], error: "" };
+        if (dt < 2200) return { phase: "holding", buttons: ["R5"], error: "" };
+        if (mock.config.binding[0] !== "R5") { mock.config.binding = ["R5"]; emit({ kind: "binding", buttons: ["R5"], notify: true }); }
+        return { phase: "captured", buttons: ["R5"], error: "" };
+      };
+      return mock.capture();
+    },
+    get_binding_capture: () => (mock.capture ? mock.capture() : null),
+    cancel_binding_capture: () => { mock.capture = null; },
+  };
+  window.__DECKY_SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED_deckyLoaderAPIInit = {
+    connect: (version) => ({
+      _version: version,
+      callable: (route) => async (...args) => backend[route](...args),
+      addEventListener: (event, fn) => ((listeners[event] = listeners[event] || []).push(fn), fn),
+      removeEventListener: (event, fn) => { listeners[event] = (listeners[event] || []).filter((f) => f !== fn); },
+      toaster: { toast: ({ title, body }) => {
+        const node = document.createElement("div");
+        node.className = "toast";
+        node.innerHTML = `<b></b><div></div>`;
+        node.querySelector("b").textContent = title;
+        node.querySelector("div").textContent = body;
+        document.getElementById("toasts").append(node);
+        setTimeout(() => node.remove(), 3500);
+      } },
+    }),
+  };
+
+  document.getElementById("hold").onclick = () => { mock.recording = true; emit({ kind: "recording", notify: true }); };
+  document.getElementById("release").onclick = () => {
+    mock.recording = false; mock.last_text = "Anyone up for one more round?";
+    emit({ kind: "done", text: mock.last_text, notify: true });
+  };
+  document.getElementById("uninstall").onclick = () => { mock.installed = false; mock.install = { state: "idle", stage: "", error: "", version: "", received: 0, total: 0 }; };
+  document.getElementById("external").onclick = () => { mock.external = true; };
+</script>
+<script type="module">
+  const { default: plugin } = await import("../dist/index.js");
+  const instance = plugin();
+  ReactDOM.createRoot(document.getElementById("qam")).render(
+    React.createElement(React.Fragment, null, instance.titleView, instance.content));
+</script>
+</body>
+</html>

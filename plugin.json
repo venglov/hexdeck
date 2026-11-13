@@ -1,0 +1,11 @@
+{
+  "name": "HexDeck",
+  "author": "Vyacheslav Venglovsky",
+  "flags": ["root"],
+  "api_version": 1,
+  "publish": {
+    "tags": ["voice", "dictation", "speech-to-text", "input", "accessibility"],
+    "description": "Local voice dictation with Hex in Game Mode. Hold a controller binding, speak, and the text lands in your game. Pick Hex's speech model and the binding from the Quick Access Menu.",
+    "image": ""
+  }
+}
