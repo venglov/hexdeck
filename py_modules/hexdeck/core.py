@@ -25,8 +25,10 @@ from typing import Any, Callable, Optional
 from . import VERSION
 from .config import Config
 from .controller import ControllerReader
-from .hexcli import EXIT_NO_SPEECH, EXIT_NOT_RUNNING, EXIT_OK, HexCli, HexResult, find_hex, setting_value
+from .hexcli import EXIT_NO_SPEECH, EXIT_NOT_RUNNING, EXIT_OK, HexCli, HexResult, find_hex, model_file, setting_value
 from .installer import Installer
+from .languages import language_info
+from .model_files import RemoveError, remove_model_files
 from .service import HexService
 from .session import Account, DisplayChoice, detect_display, find_account
 from .typer import VirtualKeyboard
@@ -416,7 +418,45 @@ class HexDeck:
         if not result.ok:
             return {"ok": False, "error": result.message, "models": []}
         models = result.reply.get("models") or []
-        return {"ok": True, "models": [m for m in models if isinstance(m, dict)]}
+        return {"ok": True, "models": [{**m, **language_info(m)} for m in models if isinstance(m, dict)]}
+
+    def remove_model(self, model_id: str) -> dict:
+        """Delete a downloaded model's files (see ``model_files``)."""
+        cli = self._cli_or_raise()
+        models = self.list_models().get("models", [])
+        model = next((m for m in models if m.get("id") == model_id), None)
+        if model is None:
+            return {"ok": False, "error": f"Hex has no model {model_id}"}
+        name = model.get("name") or model_id
+        if not model.get("installed"):
+            return {"ok": False, "error": f"{name} isn't downloaded"}
+        self.refresh_status(force=True)
+        with self.lock:
+            report = dict(self.status.get("model") or {})
+        fallback = report.get("fallback") if isinstance(report.get("fallback"), dict) else {}
+        if model.get("selected") or model_id in (report.get("id"), fallback.get("id")):
+            return {"ok": False, "error": f"{name} is the model Hex uses. Choose another one first."}
+        if report.get("preparing"):
+            return {"ok": False, "error": "A model download is in progress. Try again when it finishes."}
+        source = str(model.get("source") or "")
+        if source.startswith("found"):
+            return {"ok": False, "error": f"{name} belongs to another app ({source[6:].strip()}); HexDeck leaves it alone"}
+        if model_id.startswith("custom-") or source == "imported":
+            answer = self._answer(cli.remove_import(model_id))
+        else:
+            status = cli.model_status(model_id)
+            found = model_file(status.reply) if status.ok else None
+            if found is None:
+                return {"ok": False, "error": status.message if not status.ok else "Hex didn't say where the model is"}
+            try:
+                remove_model_files(found[1], cli.account.home)
+            except RemoveError as error:
+                return {"ok": False, "error": str(error)}
+            answer = {"ok": True}
+        if answer["ok"]:
+            logger.info("removed model %s", model_id)
+            answer["message"] = f"Deleted {name}"
+        return answer
 
     def select_model(self, model_id: str, language: str = "") -> dict:
         cli = self._cli_or_raise()

@@ -132,3 +132,35 @@ def test_restart_budget():
     assert not budget.allow()
     now[0] = 11
     assert budget.allow()
+
+
+def test_remove_model_files_stays_in_home(tmp_path):
+    import pytest
+    from hexdeck.model_files import RemoveError, remove_model_files
+    home = tmp_path / "home"
+    home.mkdir()
+    outside = tmp_path / "elsewhere"
+    outside.mkdir()
+    (outside / "m.gguf").write_text("x")
+    with pytest.raises(RemoveError):
+        remove_model_files(str(outside / "m.gguf"), str(home))
+    with pytest.raises(RemoveError):
+        remove_model_files(str(home / "notes.txt"), str(home))
+    with pytest.raises(RemoveError):
+        remove_model_files("relative.gguf", str(home))
+    assert (outside / "m.gguf").exists()
+
+
+def test_model_file_parses_hex_model_status():
+    from hexdeck.hexcli import model_file
+    assert model_file({"message": "installed\tverified\tParakeet v3\t/h/.local/share/hex/models/p.gguf"}) == \
+        (True, "/h/.local/share/hex/models/p.gguf")
+    assert model_file({"message": "missing\tunverified\tX\t/a b/x.gguf"}) == (False, "/a b/x.gguf")
+    assert model_file({"message": "nonsense"}) is None
+
+
+def test_language_info_for_an_unknown_model():
+    from hexdeck.languages import language_info
+    assert language_info({"id": "custom-1", "languages": ["en", "de"]}) == \
+        {"language_mode": "choice", "detects_language": None, "language_choices": ["en", "de"]}
+    assert language_info({"id": "custom-2", "languages": ["en"]})["language_mode"] == "fixed"

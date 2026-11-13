@@ -167,6 +167,16 @@ class HexCli:
     def cancel_model(self) -> HexResult:
         return self.run("model", "cancel", timeout=10)
 
+    def model_status(self, model_id: str) -> HexResult:
+        """``hex model status <id>``, a local tool on Linux with no ``--json``:
+        one line, ``installed|missing <tab> verified|unverified <tab> name
+        <tab> path``. The reply's ``message`` holds that line."""
+        return self.run("model", "status", model_id, timeout=20, json_flag=False)
+
+    def remove_import(self, model_id: str) -> HexResult:
+        """``hex model remove <id>``: Hex's copy of a Labs import only."""
+        return self.run("model", "remove", model_id, timeout=20, json_flag=False)
+
     def get_setting(self, key: str) -> HexResult:
         return self.run("settings", "get", key, timeout=10)
 
@@ -176,6 +186,15 @@ class HexCli:
     def quit(self, force: bool = False) -> HexResult:
         args = ["quit"] + (["--force"] if force else [])
         return self.run(*args, timeout=20)
+
+
+def model_file(reply: dict) -> Optional[tuple]:
+    """``(installed, path)`` from a ``model status`` reply, or ``None``."""
+    line = str(reply.get("message", "")).strip()
+    parts = line.split("\t")
+    if len(parts) < 4 or parts[0] not in ("installed", "missing"):
+        return None
+    return parts[0] == "installed", "\t".join(parts[3:])
 
 
 def setting_value(reply: dict, key: str):

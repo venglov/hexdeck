@@ -76,6 +76,9 @@ class Plugin:
     async def select_model(self, model_id, language=""):
         return await self._call("select_model", model_id, language)
 
+    async def remove_model(self, model_id):
+        return await self._call("remove_model", model_id)
+
     async def cancel_model_download(self):
         return await self._call("cancel_model_download")
 

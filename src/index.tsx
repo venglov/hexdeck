@@ -1,16 +1,17 @@
 import {
   ButtonItem,
+  DialogButton,
   DropdownItem,
   Field,
   PanelSection,
   PanelSectionRow,
-  ProgressBarWithInfo,
+  ProgressBar,
   ToggleField,
   staticClasses,
 } from "@decky/ui";
 import { addEventListener, definePlugin, removeEventListener, toaster } from "@decky/api";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BsHexagonFill } from "react-icons/bs";
+import { BsHexagonFill, BsTrash3 } from "react-icons/bs";
 
 import {
   Capture,
@@ -25,9 +26,12 @@ import {
   getState,
   installHex,
   languageName,
+  languageSummary,
   listModels,
   megabytes,
   parseSize,
+  percent,
+  removeModel,
   restartHex,
   selectModel,
   setConfig,
@@ -112,12 +116,152 @@ function BindingRow({ state, refresh }: { state: State; refresh: () => void }) {
   );
 }
 
+/**
+ * A progress bar the width of the panel. Steam's ProgressBarWithInfo puts its
+ * bar and status line (text, percent) beside the label, and in the Quick
+ * Access panel's narrow width that row runs past the right edge; any plugin
+ * using it inline shows the same. Here the text is the Field's label and
+ * description and the bare bar sits below them.
+ */
+function ProgressRow({ label, progress, detail }: { label: string; progress?: number; detail?: string }) {
+  return (
+    <Field label={label} description={detail} childrenLayout="below" childrenContainerWidth="max" bottomSeparator="none">
+      <div style={{ width: "100%", padding: "6px 0 2px", boxSizing: "border-box" }}>
+        <ProgressBar nProgress={progress} indeterminate={progress === undefined} />
+      </div>
+    </Field>
+  );
+}
+
+function LanguageRow({ model, language, choose }: { model: HexModel; language?: string; choose: (language: string) => void }) {
+  if (model.language_mode === "automatic") {
+    return (
+      <PanelSectionRow>
+        <Field
+          label="Language"
+          description={`${model.name} hears which of its ${languageSummary(model)} you speak. It has no language setting.`}
+        >
+          Automatic
+        </Field>
+      </PanelSectionRow>
+    );
+  }
+  if (model.language_mode !== "choice") return null;
+  const current = language && model.language_choices.includes(language) ? language : undefined;
+  const description = current === "auto"
+    ? `Recognizes whichever of its ${languageSummary(model)} you speak`
+    : current
+      ? `Tells ${model.name} to expect ${languageName(current)}.${model.detects_language ? " Automatic lets it detect the language." : ""}`
+      : undefined;
+  return (
+    <PanelSectionRow>
+      <DropdownItem
+        label="Language"
+        description={description}
+        menuLabel="Dictation language"
+        rgOptions={model.language_choices.map((code) => ({
+          data: code,
+          label: code === "auto" ? "Automatic (detect)" : languageName(code),
+        }))}
+        selectedOption={current}
+        strDefaultLabel={language ? languageName(language) : "—"}
+        onChange={(option) => choose(option.data)}
+      />
+    </PanelSectionRow>
+  );
+}
+
+/**
+ * Steam's inline ButtonItem gives its button a fixed width that, in the Quick
+ * Access panel, runs past the right edge (like ProgressBarWithInfo). The
+ * delete button sets its own width instead, and the Field's children column
+ * shrinks to it.
+ */
+const DELETE_BUTTON = { width: "92px", minWidth: "0", padding: "8px 0", flexShrink: 0 } as const;
+
+function DownloadedModels({ models, busy, reloadModels }: { models: HexModel[]; busy: boolean; reloadModels: () => void }) {
+  const [confirming, setConfirming] = useState<string | null>(null);
+  const [removing, setRemoving] = useState<string | null>(null);
+  const timer = useRef<number | null>(null);
+  useEffect(() => () => { if (timer.current !== null) window.clearTimeout(timer.current); }, []);
+
+  const press = async (model: HexModel) => {
+    if (timer.current !== null) window.clearTimeout(timer.current);
+    if (confirming !== model.id) {
+      setConfirming(model.id);
+      timer.current = window.setTimeout(() => setConfirming(null), 4000);
+      return;
+    }
+    setConfirming(null);
+    setRemoving(model.id);
+    const answer = await removeModel(model.id);
+    setRemoving(null);
+    toast(answer.ok ? `${model.name} deleted, ${model.size} freed` : answer.error ?? "Couldn't delete the model");
+    reloadModels();
+  };
+
+  const downloaded = models.filter((model) => model.installed);
+  return (
+    <>
+      {downloaded.map((model) => {
+        const found = (model.source ?? "").startsWith("found");
+        const description = model.selected
+          ? `${model.size} · in use`
+          : found
+            ? `${model.size} · another app's file`
+            : confirming === model.id
+              ? `Press again to delete ${model.size}`
+              : model.size;
+        return (
+          <PanelSectionRow key={model.id}>
+            {model.selected || found ? (
+              <Field label={model.name} description={description} />
+            ) : (
+              <Field
+                label={model.name}
+                description={description}
+                childrenLayout="inline"
+                childrenContainerWidth="min"
+              >
+                <DialogButton
+                  aria-label={`Delete ${model.name}`}
+                  disabled={busy || removing !== null}
+                  onClick={() => press(model)}
+                  style={DELETE_BUTTON}
+                >
+                  {removing === model.id
+                    ? "Deleting…"
+                    : confirming === model.id
+                      ? "Confirm"
+                      : <BsTrash3 style={{ display: "block", margin: "0 auto" }} />}
+                </DialogButton>
+              </Field>
+            )}
+          </PanelSectionRow>
+        );
+      })}
+      {!downloaded.some((model) => !model.selected) && (
+        <PanelSectionRow>
+          <Field description="Only the model in use is downloaded." />
+        </PanelSectionRow>
+      )}
+      {busy && downloaded.some((model) => !model.selected) && (
+        <PanelSectionRow>
+          <Field description="Models can be deleted once the download finishes." />
+        </PanelSectionRow>
+      )}
+    </>
+  );
+}
+
 function ModelSection({ state, models, reloadModels }: { state: State; models: HexModel[]; reloadModels: () => void }) {
+  const [managing, setManaging] = useState(false);
   const selected = models.find((model) => model.selected) ?? models.find((model) => model.id === state.hex.model.id);
   const preparing = state.hex.model.preparing;
   const preparingModel = models.find((model) => model.id === preparing || model.name === preparing);
   const total = preparingModel ? parseSize(preparingModel.size) : null;
   const received = state.hex.model.downloaded_bytes ?? 0;
+  const downloadedCount = models.filter((model) => model.installed).length;
 
   const choose = async (id: string, language: string) => {
     const answer = await selectModel(id, language);
@@ -141,7 +285,9 @@ function ModelSection({ state, models, reloadModels }: { state: State; models: H
       <PanelSectionRow>
         <DropdownItem
           label="Model"
-          description={selected ? `${selected.size}${selected.installed ? "" : " · not downloaded"}` : undefined}
+          description={selected
+            ? `${selected.size} · ${languageSummary(selected)}${selected.installed ? "" : " · not downloaded"}`
+            : undefined}
           menuLabel="Hex speech model"
           rgOptions={models.map((model) => ({
             data: model.id,
@@ -152,25 +298,18 @@ function ModelSection({ state, models, reloadModels }: { state: State; models: H
           onChange={(option) => choose(option.data, "")}
         />
       </PanelSectionRow>
-      {selected && selected.languages.length > 1 && (
-        <PanelSectionRow>
-          <DropdownItem
-            label="Language"
-            menuLabel="Dictation language"
-            rgOptions={selected.languages.map((code) => ({ data: code, label: languageName(code) }))}
-            selectedOption={state.hex.model.language}
-            onChange={(option) => choose(selected.id, option.data)}
-          />
-        </PanelSectionRow>
+      {selected && (
+        <LanguageRow model={selected} language={state.hex.model.language} choose={(language) => choose(selected.id, language)} />
       )}
       {preparing && (
         <>
           <PanelSectionRow>
-            <ProgressBarWithInfo
-              label={`Preparing ${preparingModel?.name ?? preparing}`}
-              nProgress={total ? Math.min(100, (received / total) * 100) : undefined}
-              indeterminate={!total}
-              sOperationText={total ? `${megabytes(received)} of ${preparingModel?.size}` : megabytes(received)}
+            <ProgressRow
+              label={`Downloading ${preparingModel?.name ?? preparing}`}
+              progress={total ? percent(received, total) : undefined}
+              detail={total
+                ? `${megabytes(received)} of ${preparingModel?.size} · ${percent(received, total).toFixed(0)}%`
+                : megabytes(received)}
             />
           </PanelSectionRow>
           <PanelSectionRow>
@@ -185,6 +324,12 @@ function ModelSection({ state, models, reloadModels }: { state: State; models: H
           <Field label="Model error" description={state.hex.model.error} />
         </PanelSectionRow>
       )}
+      <PanelSectionRow>
+        <ButtonItem layout="below" onClick={() => setManaging(!managing)}>
+          {managing ? "Hide downloaded models" : `Downloaded models (${downloadedCount})`}
+        </ButtonItem>
+      </PanelSectionRow>
+      {managing && <DownloadedModels models={models} busy={!!preparing} reloadModels={reloadModels} />}
     </PanelSection>
   );
 }
@@ -290,11 +435,12 @@ function Content() {
             </PanelSectionRow>
             {install.state === "running" ? (
               <PanelSectionRow>
-                <ProgressBarWithInfo
+                <ProgressRow
                   label={install.stage}
-                  nProgress={install.total ? (install.received / install.total) * 100 : undefined}
-                  indeterminate={!install.total}
-                  sOperationText={install.total ? `${megabytes(install.received)} of ${megabytes(install.total)}` : undefined}
+                  progress={install.total ? percent(install.received, install.total) : undefined}
+                  detail={install.total
+                    ? `${megabytes(install.received)} of ${megabytes(install.total)} · ${percent(install.received, install.total).toFixed(0)}%`
+                    : undefined}
                 />
               </PanelSectionRow>
             ) : (

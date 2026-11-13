@@ -8,7 +8,11 @@ transcribed on the Deck.
 From the Quick Access Menu (`...` → HexDeck) you can:
 
 - **pick Hex's speech model** (Parakeet, Whisper, …) and its language;
-  models that aren't downloaded yet download in the background, with progress;
+  models that aren't downloaded yet download in the background, with progress,
+  and **Downloaded models** deletes the ones you no longer use;
+- see what the language setting really does: models like Parakeet v3 detect
+  the language themselves and show **Automatic**; models that take a language
+  (Whisper, Nemotron, Qwen3-ASR, …) offer **Automatic (detect)** first;
 - **change the dictation binding**: any 1–4 controller buttons, captured by
   holding them (default **L4 + R4**, the two back grips), and choose
   *Hold to talk* or *Press to start and stop*;
@@ -52,7 +56,14 @@ used as is, with its settings and models.
 - **Everything goes through Hex's control CLI** (`hex status`,
   `hex dictation start|stop|cancel`, `hex model list|use|install|cancel`,
   `hex settings get|set`), Hex's stable, versioned contract, documented in
-  Hex's `docs/cli.md`.
+  Hex's `docs/cli.md`. The one exception is **deleting a downloaded model**:
+  Hex's Linux CLI can't do it yet, so HexDeck asks `hex model status <id>`
+  where the file is and deletes it the way Hex's macOS Settings do (taking
+  Hex's download lock, never while a download runs or for the model in use).
+- **Streaming models** (Parakeet Unified English, Nemotron 3.5 ASR)
+  transcribe while you hold the binding on the Deck's GPU, so text arrives
+  sooner after you let go. Hex still inserts the text only once you've
+  finished; words don't appear live in the game.
 - **The binding is read from the physical controller**, from the Deck's raw
   HID reports (adapted from [Decktation](https://github.com/silverfoxy/decktation)),
   so it works whatever Steam Input layout the game uses. Games still see the

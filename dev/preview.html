@@ -50,15 +50,21 @@
 
   // --- @decky/ui stand-ins ---------------------------------------------------
   const Row = ({ children }) => h("div", { className: "row" }, children);
-  const Field = ({ label, description, children }) => h("div", null,
-    h("div", { className: "field" }, h("span", { className: "label" }, label), children ? h("span", null, children) : null),
-    description ? h("div", { className: "desc" }, description) : null);
+  const Field = ({ label, description, children, childrenLayout }) => h("div", null,
+    h("div", { className: "field" }, h("span", { className: "label" }, label),
+      children && childrenLayout !== "below" ? h("span", null, children) : null),
+    description ? h("div", { className: "desc" }, description) : null,
+    children && childrenLayout === "below" ? children : null);
   window.DFL = {
     staticClasses: { Title: "title" },
     PanelSection: ({ title, children }) => h("div", { className: "section" }, title ? h("div", { className: "section-title" }, title) : null, children),
     PanelSectionRow: Row,
     Field,
-    ButtonItem: ({ children, onClick, disabled }) => h("button", { onClick, disabled }, children),
+    ButtonItem: ({ children, onClick, disabled, label, description, layout }) => layout === "inline" && label
+      ? h("div", null, h("div", { className: "field" }, h("span", { className: "label" }, label),
+          h("button", { onClick, disabled, style: { width: "auto" } }, children)),
+        description ? h("div", { className: "desc" }, description) : null)
+      : h("button", { onClick, disabled }, children),
     ToggleField: ({ label, description, checked, onChange }) => h("label", null,
       h("div", { className: "field" }, h("span", { className: "label" }, label),
         h("input", { type: "checkbox", checked: !!checked, onChange: (e) => onChange(e.target.checked) })),
@@ -71,10 +77,8 @@
         }, selectedOption === undefined ? h("option", { value: "" }, strDefaultLabel || "") : null,
           rgOptions.map((o) => h("option", { key: JSON.stringify(o.data), value: JSON.stringify(o.data) }, o.label)))),
       description ? h("div", { className: "desc" }, description) : null),
-    ProgressBarWithInfo: ({ label, nProgress, sOperationText }) => h("div", null,
-      h("div", { className: "label" }, label),
-      h("progress", nProgress === undefined ? {} : { max: 100, value: nProgress }),
-      h("div", { className: "desc" }, sOperationText)),
+    DialogButton: ({ children, onClick, disabled, style }) => h("button", { onClick, disabled, style: { ...style } }, children),
+    ProgressBar: ({ nProgress }) => h("progress", nProgress === undefined ? {} : { max: 100, value: nProgress }),
   };
 
   // --- Mock backend ----------------------------------------------------------
@@ -85,17 +89,23 @@
     config: { enabled: true, binding: ["L4", "R4"], trigger_mode: "hold", output: "paste", press_enter: false,
               min_hold_ms: 300, display: "auto", hide_hex_pill: true, notifications: true, hex_path: "" },
     model: { id: "parakeet_v3", language: "en" }, preparing: null, downloaded: 0,
-    installed_models: ["parakeet_v3"], hex: { dictation_hotkey: "option+space", sound_effects: true },
+    installed_models: ["parakeet_v3", "whisper_large_v3_turbo"], hex: { dictation_hotkey: "option+space", sound_effects: true },
     last_text: "", install: { state: "idle", stage: "", error: "", version: "", received: 0, total: 0 },
   };
+  // language_mode / detects_language / language_choices come from HexDeck's backend (languages.py).
   const MODELS = [
-    { id: "parakeet_v3", name: "Parakeet V3", languages: ["en", "de", "fr", "es"], size: "478 MB" },
-    { id: "whisper_large_v3_turbo", name: "Whisper Large V3 Turbo", languages: ["auto", "en", "ja", "ru"], size: "1.6 GB" },
-    { id: "whisper_small", name: "Whisper Small", languages: ["auto", "en"], size: "190 MB" },
+    { id: "parakeet_v3", name: "Parakeet v3", languages: ["en", "de", "fr", "es", "ru", "uk"], size: "478 MB",
+      language_mode: "automatic", detects_language: true, language_choices: ["auto"] },
+    { id: "whisper_large_v3_turbo", name: "Whisper large-v3-turbo", languages: ["*"], size: "1.6 GB",
+      language_mode: "choice", detects_language: true, language_choices: ["auto", "en", "zh", "ja", "ru", "uk", "de"] },
+    { id: "nemotron_3_5_asr", name: "Nemotron 3.5 ASR", languages: ["en", "de", "ru"], size: "1.2 GB", streams: true,
+      language_mode: "choice", detects_language: true, language_choices: ["auto", "en", "de", "ru"] },
+    { id: "parakeet_unified_en", name: "Parakeet Unified English", languages: ["en"], size: "731 MB", streams: true,
+      language_mode: "fixed", detects_language: false, language_choices: ["en"] },
   ];
   const backend = {
     get_state: () => ({
-      version: "0.1.0", config: mock.config,
+      version: "0.2.0", config: mock.config,
       session: { kind: "gamescope", display: ":1", reason: "Gamescope's main Xwayland" },
       hex: { installed: mock.installed, path: mock.installed ? "/home/deck/.local/bin/hex" : null, version: mock.installed ? "3.4.0" : null,
              running: mock.installed, owned: !mock.external, external: mock.external, service_error: "",
@@ -111,7 +121,8 @@
     list_models: () => ({ ok: true, models: MODELS.map((m) => ({ ...m, installed: mock.installed_models.includes(m.id), selected: m.id === mock.model.id })) }),
     select_model: (id, language) => {
       const installed = mock.installed_models.includes(id);
-      mock.model = { id, language: language || MODELS.find((m) => m.id === id).languages[0] };
+      const choices = MODELS.find((m) => m.id === id).language_choices;
+      mock.model = { id, language: language || (choices.includes(mock.model.language) ? mock.model.language : choices[0]) };
       if (!installed) {
         mock.preparing = id; mock.downloaded = 0;
         const timer = setInterval(() => {
@@ -122,6 +133,11 @@
       return { ok: true, downloading: !installed };
     },
     cancel_model_download: () => { mock.preparing = null; return { ok: true }; },
+    remove_model: (id) => {
+      if (id === mock.model.id) return { ok: false, error: "That's the model Hex uses. Choose another one first." };
+      mock.installed_models = mock.installed_models.filter((m) => m !== id);
+      return { ok: true, message: "Deleted" };
+    },
     get_hex_settings: () => ({ ok: true, settings: { ...mock.hex } }),
     set_hex_setting: (key, value) => { mock.hex[key] = key === "sound_effects" ? value === "on" : value; return { ok: true }; },
     install_hex: () => {
