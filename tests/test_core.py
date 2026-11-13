@@ -160,7 +160,7 @@ def test_disabled_ignores_the_controller(deck, home):
 def test_model_selection_uses_installed_models_and_installs_others(deck, home):
     deck.refresh_session()
     models = deck.list_models()["models"]
-    assert [m["id"] for m in models] == ["parakeet_v3", "whisper_large_v3_turbo"]
+    assert [m["id"] for m in models][:2] == ["parakeet_v3", "whisper_large_v3_turbo"]
     assert deck.select_model("parakeet_v3", "de")["ok"]
     assert "model use parakeet_v3 --language de DISPLAY=:1" in calls(home)
     answer = deck.select_model("whisper_large_v3_turbo")
@@ -203,3 +203,95 @@ def test_last_history_text():
     assert last_history_text({"entries": [{"text": "hi"}]}) == "hi"
     assert last_history_text({"value": [{"final": "yo"}]}) == "yo"
     assert last_history_text({}) == ""
+
+
+def fake_state(home):
+    import json
+    return json.loads((home / "fake-state.json").read_text())
+
+
+def write_fake_state(home, **changes):
+    import json
+    state = fake_state(home)
+    state.update(changes)
+    (home / "fake-state.json").write_text(json.dumps(state))
+
+
+def models_by_id(deck):
+    return {m["id"]: m for m in deck.list_models()["models"]}
+
+
+def test_models_say_what_their_language_setting_does(deck):
+    deck.refresh_session()
+    models = models_by_id(deck)
+    # Parakeet v3 hears the language itself: no choice to make.
+    assert models["parakeet_v3"]["language_mode"] == "automatic"
+    assert models["parakeet_v3"]["language_choices"] == ["auto"]
+    # Whisper takes any of Hex's languages, Auto first.
+    whisper = models["whisper_large_v3_turbo"]
+    assert whisper["language_mode"] == "choice"
+    assert whisper["language_choices"][:3] == ["auto", "en", "zh"]
+    assert "ru" in whisper["language_choices"] and "*" not in whisper["language_choices"]
+    assert models["nemotron_3_5_asr"]["language_choices"] == ["auto", "en", "de", "ru"]
+    unified = models["parakeet_unified_en"]
+    assert unified["language_mode"] == "fixed" and unified["language_choices"] == ["en"]
+
+
+def test_auto_language_goes_to_hex(deck, home):
+    deck.refresh_session()
+    deck.select_model("nemotron_3_5_asr", "")
+    assert deck.select_model("nemotron_3_5_asr", "auto")["ok"]
+    assert "model use nemotron_3_5_asr --language auto DISPLAY=:1" in calls(home)
+    assert deck.get_state()["hex"]["model"]["language"] in ("auto", "en")
+
+
+def test_remove_model_deletes_its_files(deck, home):
+    deck.refresh_session()
+    deck.select_model("whisper_large_v3_turbo")  # downloads and switches
+    deck.select_model("parakeet_v3")
+    folder = home / ".local" / "share" / "hex" / "models"
+    (folder / "whisper_large_v3_turbo.gguf.verified.json").write_text("{}")
+    (folder / "whisper_large_v3_turbo.gguf.partial").write_text("")
+    answer = deck.remove_model("whisper_large_v3_turbo")
+    assert answer["ok"], answer
+    assert sorted(p.name for p in folder.iterdir()) == ["parakeet_v3.gguf"]
+    assert not models_by_id(deck)["whisper_large_v3_turbo"]["installed"]
+    # It never creates a lock file of its own.
+    assert not (folder / ".download.lock").exists()
+
+
+def test_remove_model_refuses_the_selected_model_and_missing_ones(deck, home):
+    deck.refresh_session()
+    assert "Choose another" in deck.remove_model("parakeet_v3")["error"]
+    assert (home / ".local" / "share" / "hex" / "models" / "parakeet_v3.gguf").exists()
+    assert "isn't downloaded" in deck.remove_model("nemotron_3_5_asr")["error"]
+    assert not deck.remove_model("nope")["ok"]
+
+
+def test_remove_model_waits_for_a_download(deck, home):
+    import fcntl
+    deck.refresh_session()
+    deck.select_model("whisper_large_v3_turbo")
+    deck.select_model("parakeet_v3")
+    write_fake_state(home, preparing="nemotron_3_5_asr")
+    assert "in progress" in deck.remove_model("whisper_large_v3_turbo")["error"]
+    write_fake_state(home, preparing=None)
+    folder = home / ".local" / "share" / "hex" / "models"
+    with open(folder / ".download.lock", "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        assert "in progress" in deck.remove_model("whisper_large_v3_turbo")["error"]
+    assert (folder / "whisper_large_v3_turbo.gguf").exists()
+    assert deck.remove_model("whisper_large_v3_turbo")["ok"]
+
+
+def test_remove_model_leaves_other_apps_files_alone(deck, home):
+    deck.refresh_session()
+    write_fake_state(home, extra_models=[
+        {"id": "custom-0123456789abcdef", "name": "Found", "languages": ["en"], "size": "90 MB",
+         "installed": True, "selected": False, "source": "found: someone/model@abc1234 (not tested by Hex)"},
+        {"id": "custom-fedcba9876543210", "name": "Mine", "languages": ["en"], "size": "90 MB",
+         "installed": True, "selected": False, "source": "imported"},
+    ])
+    assert "another app" in deck.remove_model("custom-0123456789abcdef")["error"]
+    assert deck.remove_model("custom-fedcba9876543210")["ok"]
+    assert "model remove custom-fedcba9876543210 DISPLAY=:1" in calls(home)

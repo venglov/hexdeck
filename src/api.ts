@@ -58,6 +58,14 @@ export type HexModel = {
   installed: boolean;
   selected: boolean;
   streams?: boolean;
+  /** download | hex | imported | found: owner/name@rev */
+  source?: string;
+  /** automatic: the model hears the language itself and has no setting;
+   *  choice: the language goes to the model ("auto" where it detects);
+   *  fixed: one language. Added by HexDeck's backend (languages.py). */
+  language_mode: "automatic" | "choice" | "fixed";
+  detects_language: boolean | null;
+  language_choices: string[];
 };
 
 export type Capture = { phase: "release" | "listening" | "holding" | "captured" | "cancelled"; buttons: string[]; error: string };
@@ -76,6 +84,7 @@ export const getState = callable<[], State>("get_state");
 export const setConfig = callable<[key: string, value: unknown], Answer>("set_config");
 export const listModels = callable<[], Answer & { models: HexModel[] }>("list_models");
 export const selectModel = callable<[modelId: string, language: string], Answer & { downloading?: boolean }>("select_model");
+export const removeModel = callable<[modelId: string], Answer>("remove_model");
 export const cancelModelDownload = callable<[], Answer>("cancel_model_download");
 export const getHexSettings = callable<[], Answer & { settings: Record<string, unknown> }>("get_hex_settings");
 export const setHexSetting = callable<[key: string, value: string], Answer>("set_hex_setting");
@@ -91,6 +100,17 @@ export const bindingLabel = (buttons: string[]) => (buttons.length ? buttons.joi
 
 export const megabytes = (bytes: number) => `${(bytes / 1048576).toFixed(0)} MB`;
 
+
+/** A short note on the model's languages for its description. */
+export const languageSummary = (model: HexModel): string => {
+  if (model.languages.includes("*")) return "any language";
+  const count = model.languages.filter((code) => code !== "auto").length;
+  if (count === 1) return `${languageName(model.languages[0])} only`;
+  return `${count} languages`;
+};
+
+export const percent = (part: number, whole: number) => Math.min(100, Math.max(0, (part / whole) * 100));
+
 /** "478 MB" / "1.6 GB" -> bytes, for a download progress bar. */
 export const parseSize = (size: string): number | null => {
   const match = /([\d.]+)\s*(KB|MB|GB)/i.exec(size || "");
@@ -101,7 +121,7 @@ export const parseSize = (size: string): number | null => {
 
 /** Hex's language codes, shown with a readable name where the browser knows it. */
 export const languageName = (code: string): string => {
-  if (code === "auto") return "Detect automatically";
+  if (code === "auto") return "Automatic";
   try {
     const names = new Intl.DisplayNames(["en"], { type: "language" });
     return names.of(code) || code;
