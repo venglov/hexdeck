@@ -6,9 +6,10 @@ HexDeck is a Decky Loader plugin that runs [Hex](https://github.com/anomalyco/he
 
 ## Git workflow
 
-- Do all work on the `dev` branch. Before starting, run `git checkout dev && git pull && git merge origin/main` so `dev` has everything from `main`.
+- PRs into `main` are always squash-merged: `gh pr merge <n> --squash`, and only when the user asks.
+- Do all work on the `dev` branch. Squash-merging leaves `dev`'s own commits off `main`, so before starting new work, check whether `dev` has commits that aren't on `main` yet (`git log origin/main..origin/dev`). If it has none, or they've been squash-merged already, reset `dev` to `main`: `git fetch && git checkout dev && git reset --hard origin/main && git push --force-with-lease origin dev`. If an open PR still holds unmerged work, keep building on `dev` as it is.
 - Never commit to, push to, or merge into `main` directly. A hook in `.claude/settings.json` blocks `git commit`/`git push` while `main` is checked out, and any push that targets `main`.
-- When the work is done, commit to `dev`, push it, and open a PR into `main` (`gh pr create --base main --head dev`). If a PR from `dev` is already open, just push to it. Only the user merges.
+- When the work is done, commit to `dev`, push it, and open a PR into `main` (`gh pr create --base main --head dev`). If a PR from `dev` is already open, just push to it.
 
 ## Commands
 
