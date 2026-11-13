@@ -66,6 +66,31 @@ export type HexModel = {
   language_mode: "automatic" | "choice" | "fixed";
   detects_language: boolean | null;
   language_choices: string[];
+  /** Every language it understands, in Hex's Settings order ("*" spelled
+   *  out), whatever its setting. */
+  supported_languages: string[];
+  /** Hex's picker line for it; empty for a model Hex has none for (catalog.py). */
+  description: string;
+  /** "No wait" / "Under 1 s wait" / "2 s wait" after 30 s of talking; null when unknown. */
+  wait: string | null;
+};
+
+/** Hex's picks per language, best first, with the picker's badge. */
+export type Role = "recommended" | "fastest" | "most_accurate" | "vocabulary";
+
+export type ModelList = Answer & {
+  models: HexModel[];
+  /** The languages Hex's Settings list, in order. */
+  languages?: string[];
+  language_names?: Record<string, string>;
+  recommendations?: Record<string, [string, Role][]>;
+};
+
+export const ROLE_LABELS: Record<Role, string> = {
+  recommended: "Recommended",
+  fastest: "Fastest",
+  most_accurate: "Fewest wrong words",
+  vocabulary: "Reads your vocabulary",
 };
 
 export type Capture = { phase: "release" | "listening" | "holding" | "captured" | "cancelled"; buttons: string[]; error: string };
@@ -82,7 +107,16 @@ export type HexEvent = {
 
 export const getState = callable<[], State>("get_state");
 export const setConfig = callable<[key: string, value: unknown], Answer>("set_config");
-export const listModels = callable<[], Answer & { models: HexModel[] }>("list_models");
+/** Hex's names for its language codes, from the last model list. */
+let hexLanguageNames: Record<string, string> = {};
+
+const listModelsRaw = callable<[], ModelList>("list_models");
+/** Hex's models; also remembers Hex's language names for languageName. */
+export const listModels = async (): Promise<ModelList> => {
+  const answer = await listModelsRaw();
+  if (answer.language_names) hexLanguageNames = answer.language_names;
+  return answer;
+};
 export const selectModel = callable<[modelId: string, language: string], Answer & { downloading?: boolean }>("select_model");
 export const removeModel = callable<[modelId: string], Answer>("remove_model");
 export const cancelModelDownload = callable<[], Answer>("cancel_model_download");
@@ -101,12 +135,23 @@ export const bindingLabel = (buttons: string[]) => (buttons.length ? buttons.joi
 export const megabytes = (bytes: number) => `${(bytes / 1048576).toFixed(0)} MB`;
 
 
+/** The languages a model understands, from the backend or its own list. */
+export const supportedLanguages = (model: HexModel): string[] =>
+  model.supported_languages ?? model.languages.filter((code) => code !== "auto" && code !== "*");
+
 /** A short note on the model's languages for its description. */
 export const languageSummary = (model: HexModel): string => {
-  if (model.languages.includes("*")) return "any language";
-  const count = model.languages.filter((code) => code !== "auto").length;
-  if (count === 1) return `${languageName(model.languages[0])} only`;
-  return `${count} languages`;
+  const languages = supportedLanguages(model);
+  if (!model.supported_languages && model.languages.includes("*")) return "any language";
+  if (languages.length === 1) return `${languageName(languages[0])} only`;
+  return `${languages.length} languages`;
+};
+
+/** What Hex's picker says under a model's name: "2 s wait · 42 languages · 886 MB". */
+export const modelFacts = (model: HexModel): string => {
+  const languages = supportedLanguages(model);
+  const count = languages.length === 1 ? languageName(languages[0]) : `${languages.length} languages`;
+  return [model.wait, count, model.size].filter(Boolean).join(" · ");
 };
 
 export const percent = (part: number, whole: number) => Math.min(100, Math.max(0, (part / whole) * 100));
@@ -119,9 +164,10 @@ export const parseSize = (size: string): number | null => {
   return parseFloat(match[1]) * unit;
 };
 
-/** Hex's language codes, shown with a readable name where the browser knows it. */
+/** Hex's language codes, with Hex's own name, else the browser's. */
 export const languageName = (code: string): string => {
   if (code === "auto") return "Automatic";
+  if (hexLanguageNames[code]) return hexLanguageNames[code];
   try {
     const names = new Intl.DisplayNames(["en"], { type: "language" });
     return names.of(code) || code;

@@ -10,13 +10,15 @@ import {
   staticClasses,
 } from "@decky/ui";
 import { addEventListener, definePlugin, removeEventListener, toaster } from "@decky/api";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { BsTrash3 } from "react-icons/bs";
 
 import {
   Capture,
   HexEvent,
   HexModel,
+  ROLE_LABELS,
+  Role,
   State,
   bindingLabel,
   cancelBindingCapture,
@@ -29,6 +31,7 @@ import {
   languageSummary,
   listModels,
   megabytes,
+  modelFacts,
   parseSize,
   percent,
   removeModel,
@@ -37,6 +40,7 @@ import {
   setConfig,
   setHexSetting,
   startBindingCapture,
+  supportedLanguages,
   takeOverHex,
   testDictation,
 } from "./api";
@@ -255,8 +259,153 @@ function DownloadedModels({ models, busy, reloadModels }: { models: HexModel[]; 
   );
 }
 
-function ModelSection({ state, models, reloadModels }: { state: State; models: HexModel[]; reloadModels: () => void }) {
+/** Hex's languages and its picks per language, from list_models. */
+type Guide = { languages: string[]; recommendations: Record<string, [string, Role][]> };
+
+const ROLE_STYLE = { marginLeft: "8px", fontSize: "12px", fontWeight: 400, whiteSpace: "nowrap" } as const;
+
+function RoleBadge({ role }: { role: Role }) {
+  return (
+    <span style={{ ...ROLE_STYLE, color: role === "recommended" ? "#1a9fff" : "#8b929a" }}>
+      {ROLE_LABELS[role]}
+    </span>
+  );
+}
+
+/** Two lines like the cards in Hex's picker: why you'd pick it, then its wait, languages and size. */
+function ModelBlurb({ model, status }: { model: HexModel; status?: string }) {
+  const facts = [modelFacts(model), status].filter(Boolean).join(" · ");
+  return (
+    <>
+      {model.description && <div>{model.description}</div>}
+      <div>{facts}</div>
+    </>
+  );
+}
+
+function modelStatus(model: HexModel, preparing: string | null): string {
+  if (model.selected) return "in use";
+  if (preparing && (preparing === model.id || preparing === model.name)) return "downloading";
+  return model.installed ? "downloaded" : "";
+}
+
+/** How the model treats the languages it knows. */
+function languageNote(model: HexModel): string {
+  switch (model.language_mode) {
+    case "automatic": return "Hears which of these you speak, with no language setting";
+    case "choice": return model.detects_language
+      ? "Detects which of these you speak, or you pick one"
+      : "You pick which of these you speak";
+    default: return "";
+  }
+}
+
+/** The language to switch to with `model` while browsing for `language`. */
+const languageFor = (model: HexModel, language: string) => (model.language_choices.includes(language) ? language : "");
+
+const knowsLanguage = (model: HexModel, language: string) =>
+  language === "auto" ? model.detects_language === true : supportedLanguages(model).includes(language);
+
+/**
+ * Every model Hex offers, ordered like Hex's picker for one language: Hex's
+ * picks with their badges, then the other models that know the language,
+ * then the rest. A row opens to the languages the model knows and a button
+ * that switches to it, downloading it first if needed.
+ */
+function ModelGuide({ state, models, guide, choose }: {
+  state: State; models: HexModel[]; guide: Guide; choose: (id: string, language: string) => void;
+}) {
+  const saved = state.hex.model.language;
+  const [language, setLanguage] = useState(saved && guide.languages.includes(saved) ? saved : "auto");
+  const [open, setOpen] = useState<string | null>(null);
+  const preparing = state.hex.model.preparing ?? null;
+
+  const picks = (guide.recommendations[language] ?? []).filter(([id]) => models.some((model) => model.id === id));
+  const roles = new Map(picks);
+  const rest = models.filter((model) => !roles.has(model.id));
+  const fitting = [
+    ...picks.map(([id]) => models.find((model) => model.id === id) as HexModel),
+    ...rest.filter((model) => knowsLanguage(model, language)),
+  ];
+  const others = rest.filter((model) => !knowsLanguage(model, language));
+  const othersNote = language === "auto"
+    ? "These don't detect the language; you tell them which one you speak"
+    : `These don't know ${languageName(language)}`;
+
+  const row = (model: HexModel) => {
+    const expanded = open === model.id;
+    const role = roles.get(model.id);
+    const names = supportedLanguages(model).map(languageName).join(", ");
+    const note = languageNote(model);
+    return (
+      <Fragment key={model.id}>
+        <PanelSectionRow>
+          <Field
+            focusable
+            highlightOnFocus
+            label={<span>{model.name}{role && <RoleBadge role={role} />}</span>}
+            description={<ModelBlurb model={model} status={modelStatus(model, preparing)} />}
+            onActivate={() => setOpen(expanded ? null : model.id)}
+            onOKActionDescription={expanded ? "Hide details" : "Details"}
+          />
+        </PanelSectionRow>
+        {expanded && (
+          <>
+            <PanelSectionRow>
+              <Field
+                indentLevel={1}
+                label={`Languages (${supportedLanguages(model).length})`}
+                description={<>{note && <div>{note}:</div>}<div>{names || "Hex doesn't say"}</div></>}
+              />
+            </PanelSectionRow>
+            <PanelSectionRow>
+              {model.selected ? (
+                <Field indentLevel={1} description="This is the model Hex uses." />
+              ) : (
+                <ButtonItem layout="below" disabled={!!preparing} onClick={() => choose(model.id, languageFor(model, language))}>
+                  {model.installed ? `Use ${model.name}` : `Download ${model.size} and use`}
+                </ButtonItem>
+              )}
+            </PanelSectionRow>
+          </>
+        )}
+      </Fragment>
+    );
+  };
+
+  return (
+    <>
+      <PanelSectionRow>
+        <DropdownItem
+          label="Models for"
+          description="Hex's picks for it come first"
+          menuLabel="Show models for"
+          rgOptions={["auto", ...guide.languages].map((code) => ({
+            data: code,
+            label: code === "auto" ? "Any language (detected)" : languageName(code),
+          }))}
+          selectedOption={language}
+          onChange={(option) => { setLanguage(option.data); setOpen(null); }}
+        />
+      </PanelSectionRow>
+      {fitting.map(row)}
+      {others.length > 0 && (
+        <>
+          <PanelSectionRow>
+            <Field label="Other models" description={othersNote} />
+          </PanelSectionRow>
+          {others.map(row)}
+        </>
+      )}
+    </>
+  );
+}
+
+function ModelSection({ state, models, guide, reloadModels }: {
+  state: State; models: HexModel[]; guide: Guide; reloadModels: () => void;
+}) {
   const [managing, setManaging] = useState(false);
+  const [browsing, setBrowsing] = useState(false);
   const selected = models.find((model) => model.selected) ?? models.find((model) => model.id === state.hex.model.id);
   const preparing = state.hex.model.preparing;
   const preparingModel = models.find((model) => model.id === preparing || model.name === preparing);
@@ -287,7 +436,7 @@ function ModelSection({ state, models, reloadModels }: { state: State; models: H
         <DropdownItem
           label="Model"
           description={selected
-            ? `${selected.size} · ${languageSummary(selected)}${selected.installed ? "" : " · not downloaded"}`
+            ? <ModelBlurb model={selected} status={selected.installed ? undefined : "not downloaded"} />
             : undefined}
           menuLabel="Hex speech model"
           rgOptions={models.map((model) => ({
@@ -326,6 +475,12 @@ function ModelSection({ state, models, reloadModels }: { state: State; models: H
         </PanelSectionRow>
       )}
       <PanelSectionRow>
+        <ButtonItem layout="below" onClick={() => setBrowsing(!browsing)}>
+          {browsing ? "Hide the model guide" : `Model guide (${models.length})`}
+        </ButtonItem>
+      </PanelSectionRow>
+      {browsing && <ModelGuide state={state} models={models} guide={guide} choose={choose} />}
+      <PanelSectionRow>
         <ButtonItem layout="below" onClick={() => setManaging(!managing)}>
           {managing ? "Hide downloaded models" : `Downloaded models (${downloadedCount})`}
         </ButtonItem>
@@ -338,6 +493,7 @@ function ModelSection({ state, models, reloadModels }: { state: State; models: H
 function Content() {
   const [state, setState] = useState<State | null>(null);
   const [models, setModels] = useState<HexModel[]>([]);
+  const [guide, setGuide] = useState<Guide>({ languages: [], recommendations: {} });
   const [hexSettings, setHexSettings] = useState<Record<string, unknown>>({});
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
@@ -354,7 +510,10 @@ function Content() {
 
   const reloadModels = useCallback(async () => {
     const answer = await listModels();
-    if (answer.ok) setModels(answer.models);
+    if (answer.ok) {
+      setModels(answer.models);
+      setGuide({ languages: answer.languages ?? [], recommendations: answer.recommendations ?? {} });
+    }
     const settings = await getHexSettings();
     if (settings.ok) setHexSettings(settings.settings);
     refresh();
@@ -493,7 +652,7 @@ function Content() {
         )}
       </PanelSection>
 
-      <ModelSection state={state} models={models} reloadModels={reloadModels} />
+      <ModelSection state={state} models={models} guide={guide} reloadModels={reloadModels} />
 
       <PanelSection title="Dictation controls">
         <BindingRow state={state} refresh={refresh} />
@@ -508,18 +667,6 @@ function Content() {
             onChange={(option) => update("trigger_mode", option.data)}
           />
         </PanelSectionRow>
-        {running && (
-          <PanelSectionRow>
-            <DropdownItem
-              label="Keyboard shortcut"
-              description="Hex's own shortcut, for a USB or Bluetooth keyboard"
-              rgOptions={shortcutOptions.map((option) => ({ data: option.value, label: option.label }))}
-              selectedOption={hotkey}
-              strDefaultLabel="—"
-              onChange={(option) => updateHex("dictation_hotkey", option.data)}
-            />
-          </PanelSectionRow>
-        )}
         {running && (
           <>
             <PanelSectionRow>
@@ -585,6 +732,18 @@ function Content() {
         </PanelSectionRow>
         {advanced && (
           <>
+            {running && (
+              <PanelSectionRow>
+                <DropdownItem
+                  label="Keyboard shortcut"
+                  description="Hex's own shortcut, for a USB or Bluetooth keyboard"
+                  rgOptions={shortcutOptions.map((option) => ({ data: option.value, label: option.label }))}
+                  selectedOption={hotkey}
+                  strDefaultLabel="—"
+                  onChange={(option) => updateHex("dictation_hotkey", option.data)}
+                />
+              </PanelSectionRow>
+            )}
             <PanelSectionRow>
               <ToggleField
                 label="Hide Hex's recording pill"

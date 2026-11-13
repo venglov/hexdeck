@@ -1,0 +1,1297 @@
+{
+ "models": [
+  {
+   "id": "parakeet_unified_en",
+   "name": "Parakeet Unified English",
+   "languages": [
+    "en"
+   ],
+   "size": "731 MB",
+   "streams": true,
+   "language_mode": "fixed",
+   "detects_language": false,
+   "language_choices": [
+    "en"
+   ],
+   "supported_languages": [
+    "en"
+   ],
+   "description": "Writes while you talk, so the text is ready when you let go",
+   "wait": "No wait",
+   "wait_seconds": 0.0
+  },
+  {
+   "id": "parakeet_v2",
+   "name": "Parakeet v2",
+   "languages": [
+    "en"
+   ],
+   "size": "729 MB",
+   "streams": false,
+   "language_mode": "fixed",
+   "detects_language": false,
+   "language_choices": [
+    "en"
+   ],
+   "supported_languages": [
+    "en"
+   ],
+   "description": "The English model before Parakeet Unified",
+   "wait": "Under 1 s wait",
+   "wait_seconds": 0.5454545454545454
+  },
+  {
+   "id": "parakeet_v3",
+   "name": "Parakeet v3",
+   "languages": [
+    "bg",
+    "hr",
+    "cs",
+    "da",
+    "nl",
+    "en",
+    "et",
+    "fi",
+    "fr",
+    "de",
+    "el",
+    "hu",
+    "it",
+    "lv",
+    "lt",
+    "mt",
+    "pl",
+    "pt",
+    "ro",
+    "ru",
+    "sk",
+    "sl",
+    "es",
+    "sv",
+    "uk"
+   ],
+   "size": "739 MB",
+   "streams": false,
+   "language_mode": "automatic",
+   "detects_language": true,
+   "language_choices": [
+    "auto"
+   ],
+   "supported_languages": [
+    "en",
+    "es",
+    "fr",
+    "de",
+    "pt",
+    "it",
+    "ru",
+    "uk",
+    "nl",
+    "pl",
+    "sv",
+    "da",
+    "fi",
+    "cs",
+    "el",
+    "ro",
+    "hu",
+    "bg",
+    "hr",
+    "et",
+    "lv",
+    "lt",
+    "mt",
+    "sk",
+    "sl"
+   ],
+   "description": "25 European languages, and it hears which one you speak",
+   "wait": "Under 1 s wait",
+   "wait_seconds": 0.9090909090909091
+  },
+  {
+   "id": "orukeet",
+   "name": "Orukeet",
+   "languages": [
+    "bg",
+    "hr",
+    "cs",
+    "da",
+    "nl",
+    "en",
+    "et",
+    "fi",
+    "fr",
+    "de",
+    "el",
+    "hu",
+    "it",
+    "lv",
+    "lt",
+    "mt",
+    "pl",
+    "pt",
+    "ro",
+    "ru",
+    "sk",
+    "sl",
+    "es",
+    "sv",
+    "uk"
+   ],
+   "size": "739 MB",
+   "streams": false,
+   "language_mode": "automatic",
+   "detects_language": true,
+   "language_choices": [
+    "auto"
+   ],
+   "supported_languages": [
+    "en",
+    "es",
+    "fr",
+    "de",
+    "pt",
+    "it",
+    "ru",
+    "uk",
+    "nl",
+    "pl",
+    "sv",
+    "da",
+    "fi",
+    "cs",
+    "el",
+    "ro",
+    "hu",
+    "bg",
+    "hr",
+    "et",
+    "lv",
+    "lt",
+    "mt",
+    "sk",
+    "sl"
+   ],
+   "description": "A Parakeet v3 fine-tune, a bit more accurate in 20 of its 25 languages",
+   "wait": "Under 1 s wait",
+   "wait_seconds": 0.9090909090909091
+  },
+  {
+   "id": "whisper_large_v3_turbo",
+   "name": "Whisper large-v3-turbo",
+   "languages": [
+    "*"
+   ],
+   "size": "886 MB",
+   "streams": false,
+   "language_mode": "choice",
+   "detects_language": true,
+   "language_choices": [
+    "auto",
+    "en",
+    "zh",
+    "yue",
+    "ja",
+    "ko",
+    "es",
+    "fr",
+    "de",
+    "pt",
+    "it",
+    "ar",
+    "hi",
+    "bn",
+    "vi",
+    "ru",
+    "uk",
+    "nl",
+    "pl",
+    "tr",
+    "sv",
+    "da",
+    "no",
+    "fi",
+    "cs",
+    "el",
+    "ro",
+    "hu",
+    "id",
+    "ms",
+    "th",
+    "fa",
+    "he",
+    "bg",
+    "hr",
+    "et",
+    "lv",
+    "lt",
+    "mt",
+    "sk",
+    "sl",
+    "mk",
+    "fil"
+   ],
+   "supported_languages": [
+    "en",
+    "zh",
+    "yue",
+    "ja",
+    "ko",
+    "es",
+    "fr",
+    "de",
+    "pt",
+    "it",
+    "ar",
+    "hi",
+    "bn",
+    "vi",
+    "ru",
+    "uk",
+    "nl",
+    "pl",
+    "tr",
+    "sv",
+    "da",
+    "no",
+    "fi",
+    "cs",
+    "el",
+    "ro",
+    "hu",
+    "id",
+    "ms",
+    "th",
+    "fa",
+    "he",
+    "bg",
+    "hr",
+    "et",
+    "lv",
+    "lt",
+    "mt",
+    "sk",
+    "sl",
+    "mk",
+    "fil"
+   ],
+   "description": "Almost any language, and it reads your vocabulary",
+   "wait": "2 s wait",
+   "wait_seconds": 1.5789473684210527
+  },
+  {
+   "id": "qwen3_asr06_b",
+   "name": "Qwen3-ASR 0.6B",
+   "languages": [
+    "zh",
+    "en",
+    "yue",
+    "ar",
+    "de",
+    "fr",
+    "es",
+    "pt",
+    "id",
+    "it",
+    "ko",
+    "ru",
+    "th",
+    "vi",
+    "ja",
+    "tr",
+    "hi",
+    "ms",
+    "nl",
+    "sv",
+    "da",
+    "fi",
+    "pl",
+    "cs",
+    "fil",
+    "fa",
+    "el",
+    "ro",
+    "hu",
+    "mk"
+   ],
+   "size": "850 MB",
+   "streams": false,
+   "language_mode": "choice",
+   "detects_language": true,
+   "language_choices": [
+    "auto",
+    "en",
+    "zh",
+    "yue",
+    "ja",
+    "ko",
+    "es",
+    "fr",
+    "de",
+    "pt",
+    "it",
+    "ar",
+    "hi",
+    "vi",
+    "ru",
+    "nl",
+    "pl",
+    "tr",
+    "sv",
+    "da",
+    "fi",
+    "cs",
+    "el",
+    "ro",
+    "hu",
+    "id",
+    "ms",
+    "th",
+    "fa",
+    "mk",
+    "fil"
+   ],
+   "supported_languages": [
+    "en",
+    "zh",
+    "yue",
+    "ja",
+    "ko",
+    "es",
+    "fr",
+    "de",
+    "pt",
+    "it",
+    "ar",
+    "hi",
+    "vi",
+    "ru",
+    "nl",
+    "pl",
+    "tr",
+    "sv",
+    "da",
+    "fi",
+    "cs",
+    "el",
+    "ro",
+    "hu",
+    "id",
+    "ms",
+    "th",
+    "fa",
+    "mk",
+    "fil"
+   ],
+   "description": "Chinese and 29 more, and it reads your vocabulary",
+   "wait": "2 s wait",
+   "wait_seconds": 1.875
+  },
+  {
+   "id": "qwencleo_asr_1_7b",
+   "name": "QwenCleo-ASR 1.7B",
+   "languages": [
+    "ar"
+   ],
+   "size": "2.2 GB",
+   "streams": false,
+   "language_mode": "fixed",
+   "detects_language": false,
+   "language_choices": [
+    "ar"
+   ],
+   "supported_languages": [
+    "ar"
+   ],
+   "description": "Egyptian Arabic, mixed with English",
+   "wait": "3 s wait",
+   "wait_seconds": 3.3333333333333335
+  },
+  {
+   "id": "ivrit_whisper_large_v3_turbo",
+   "name": "ivrit.ai Whisper large-v3-turbo",
+   "languages": [
+    "he"
+   ],
+   "size": "886 MB",
+   "streams": false,
+   "language_mode": "fixed",
+   "detects_language": false,
+   "language_choices": [
+    "he"
+   ],
+   "supported_languages": [
+    "he"
+   ],
+   "description": "Whisper, tuned for Hebrew",
+   "wait": "2 s wait",
+   "wait_seconds": 1.5789473684210527
+  },
+  {
+   "id": "sense_voice_small",
+   "name": "SenseVoice Small",
+   "languages": [
+    "zh",
+    "yue",
+    "en",
+    "ja",
+    "ko"
+   ],
+   "size": "252 MB",
+   "streams": false,
+   "language_mode": "choice",
+   "detects_language": true,
+   "language_choices": [
+    "auto",
+    "en",
+    "zh",
+    "yue",
+    "ja",
+    "ko"
+   ],
+   "supported_languages": [
+    "en",
+    "zh",
+    "yue",
+    "ja",
+    "ko"
+   ],
+   "description": "Chinese, Japanese, Korean and English. A small download",
+   "wait": "Under 1 s wait",
+   "wait_seconds": 0.4166666666666667
+  },
+  {
+   "id": "cohere_transcribe",
+   "name": "Cohere Transcribe",
+   "languages": [
+    "en",
+    "fr",
+    "de",
+    "es",
+    "it",
+    "pt",
+    "nl",
+    "pl",
+    "el",
+    "ar",
+    "ja",
+    "zh",
+    "vi",
+    "ko"
+   ],
+   "size": "2.4 GB",
+   "streams": false,
+   "language_mode": "choice",
+   "detects_language": false,
+   "language_choices": [
+    "en",
+    "zh",
+    "ja",
+    "ko",
+    "es",
+    "fr",
+    "de",
+    "pt",
+    "it",
+    "ar",
+    "vi",
+    "nl",
+    "pl",
+    "el"
+   ],
+   "supported_languages": [
+    "en",
+    "zh",
+    "ja",
+    "ko",
+    "es",
+    "fr",
+    "de",
+    "pt",
+    "it",
+    "ar",
+    "vi",
+    "nl",
+    "pl",
+    "el"
+   ],
+   "description": "The fewest wrong words, in 14 languages. A big download",
+   "wait": "Under 1 s wait",
+   "wait_seconds": 0.410958904109589
+  },
+  {
+   "id": "underdog_bark_3_pro",
+   "name": "Underdog Bark 3.0 Pro",
+   "languages": [
+    "en"
+   ],
+   "size": "739 MB",
+   "streams": false,
+   "language_mode": "fixed",
+   "detects_language": false,
+   "language_choices": [
+    "en"
+   ],
+   "supported_languages": [
+    "en"
+   ],
+   "description": "Parakeet, tuned for fewer wrong words in English",
+   "wait": "Under 1 s wait",
+   "wait_seconds": 0.9090909090909091
+  },
+  {
+   "id": "underdog_bark_3_clean",
+   "name": "Underdog Bark 3.0 Clean",
+   "languages": [
+    "en"
+   ],
+   "size": "739 MB",
+   "streams": false,
+   "language_mode": "fixed",
+   "detects_language": false,
+   "language_choices": [
+    "en"
+   ],
+   "supported_languages": [
+    "en"
+   ],
+   "description": "English, with the ums and uhs taken out",
+   "wait": "Under 1 s wait",
+   "wait_seconds": 0.9090909090909091
+  },
+  {
+   "id": "nemotron_3_5_asr",
+   "name": "Nemotron 3.5 ASR",
+   "languages": [
+    "en",
+    "es",
+    "fr",
+    "de",
+    "it",
+    "pt",
+    "nl",
+    "tr",
+    "ru",
+    "uk",
+    "pl",
+    "cs",
+    "sk",
+    "bg",
+    "hr",
+    "ro",
+    "hu",
+    "sv",
+    "da",
+    "fi",
+    "et",
+    "ar",
+    "hi",
+    "ja",
+    "ko",
+    "zh",
+    "vi"
+   ],
+   "size": "751 MB",
+   "streams": true,
+   "language_mode": "choice",
+   "detects_language": true,
+   "language_choices": [
+    "auto",
+    "en",
+    "zh",
+    "ja",
+    "ko",
+    "es",
+    "fr",
+    "de",
+    "pt",
+    "it",
+    "ar",
+    "hi",
+    "vi",
+    "ru",
+    "uk",
+    "nl",
+    "pl",
+    "tr",
+    "sv",
+    "da",
+    "fi",
+    "cs",
+    "ro",
+    "hu",
+    "bg",
+    "hr",
+    "et",
+    "sk"
+   ],
+   "supported_languages": [
+    "en",
+    "zh",
+    "ja",
+    "ko",
+    "es",
+    "fr",
+    "de",
+    "pt",
+    "it",
+    "ar",
+    "hi",
+    "vi",
+    "ru",
+    "uk",
+    "nl",
+    "pl",
+    "tr",
+    "sv",
+    "da",
+    "fi",
+    "cs",
+    "ro",
+    "hu",
+    "bg",
+    "hr",
+    "et",
+    "sk"
+   ],
+   "description": "Writes while you talk, in 27 languages",
+   "wait": "No wait",
+   "wait_seconds": 0.0
+  },
+  {
+   "id": "gigaam_v3",
+   "name": "GigaAM v3",
+   "languages": [
+    "ru"
+   ],
+   "size": "273 MB",
+   "streams": false,
+   "language_mode": "fixed",
+   "detects_language": false,
+   "language_choices": [
+    "ru"
+   ],
+   "supported_languages": [
+    "ru"
+   ],
+   "description": "Russian, with punctuation. A small download",
+   "wait": "Under 1 s wait",
+   "wait_seconds": 0.75
+  },
+  {
+   "id": "nb_whisper_medium",
+   "name": "NB-Whisper Medium",
+   "languages": [
+    "no"
+   ],
+   "size": "539 MB",
+   "streams": false,
+   "language_mode": "fixed",
+   "detects_language": false,
+   "language_choices": [
+    "no"
+   ],
+   "supported_languages": [
+    "no"
+   ],
+   "description": "Whisper, tuned for Norwegian by its National Library",
+   "wait": "2 s wait",
+   "wait_seconds": 1.7647058823529411
+  },
+  {
+   "id": "granite_speech_5",
+   "name": "Granite Speech 5.0",
+   "languages": [
+    "en",
+    "fr",
+    "de",
+    "es",
+    "pt",
+    "it",
+    "ja"
+   ],
+   "size": "505 MB",
+   "streams": false,
+   "language_mode": "automatic",
+   "detects_language": true,
+   "language_choices": [
+    "auto"
+   ],
+   "supported_languages": [
+    "en",
+    "ja",
+    "es",
+    "fr",
+    "de",
+    "pt",
+    "it"
+   ],
+   "description": "IBM's model for seven languages, with punctuation",
+   "wait": "1 s wait",
+   "wait_seconds": 1.2
+  }
+ ],
+ "languages": [
+  "en",
+  "zh",
+  "yue",
+  "ja",
+  "ko",
+  "es",
+  "fr",
+  "de",
+  "pt",
+  "it",
+  "ar",
+  "hi",
+  "bn",
+  "vi",
+  "ru",
+  "uk",
+  "nl",
+  "pl",
+  "tr",
+  "sv",
+  "da",
+  "no",
+  "fi",
+  "cs",
+  "el",
+  "ro",
+  "hu",
+  "id",
+  "ms",
+  "th",
+  "fa",
+  "he",
+  "bg",
+  "hr",
+  "et",
+  "lv",
+  "lt",
+  "mt",
+  "sk",
+  "sl",
+  "mk",
+  "fil"
+ ],
+ "language_names": {
+  "en": "English",
+  "zh": "Mandarin Chinese",
+  "yue": "Cantonese",
+  "ja": "Japanese",
+  "ko": "Korean",
+  "es": "Spanish",
+  "fr": "French",
+  "de": "German",
+  "pt": "Portuguese",
+  "it": "Italian",
+  "ar": "Arabic",
+  "hi": "Hindi",
+  "bn": "Bangla",
+  "vi": "Vietnamese",
+  "ru": "Russian",
+  "uk": "Ukrainian",
+  "nl": "Dutch",
+  "pl": "Polish",
+  "tr": "Turkish",
+  "sv": "Swedish",
+  "da": "Danish",
+  "no": "Norwegian",
+  "fi": "Finnish",
+  "cs": "Czech",
+  "el": "Greek",
+  "ro": "Romanian",
+  "hu": "Hungarian",
+  "id": "Indonesian",
+  "ms": "Malay",
+  "th": "Thai",
+  "fa": "Persian",
+  "he": "Hebrew",
+  "bg": "Bulgarian",
+  "hr": "Croatian",
+  "et": "Estonian",
+  "lv": "Latvian",
+  "lt": "Lithuanian",
+  "mt": "Maltese",
+  "sk": "Slovak",
+  "sl": "Slovenian",
+  "mk": "Macedonian",
+  "fil": "Filipino",
+  "nn": "Norwegian Nynorsk",
+  "ca": "Catalan",
+  "ta": "Tamil",
+  "ur": "Urdu",
+  "la": "Latin",
+  "mi": "Maori",
+  "ml": "Malayalam",
+  "cy": "Welsh",
+  "te": "Telugu",
+  "sr": "Serbian",
+  "az": "Azerbaijani",
+  "kn": "Kannada",
+  "br": "Breton",
+  "eu": "Basque",
+  "is": "Icelandic",
+  "hy": "Armenian",
+  "ne": "Nepali",
+  "mn": "Mongolian",
+  "bs": "Bosnian",
+  "kk": "Kazakh",
+  "sq": "Albanian",
+  "sw": "Swahili",
+  "gl": "Galician",
+  "mr": "Marathi",
+  "pa": "Punjabi",
+  "si": "Sinhala",
+  "km": "Khmer",
+  "sn": "Shona",
+  "yo": "Yoruba",
+  "so": "Somali",
+  "af": "Afrikaans",
+  "oc": "Occitan",
+  "ka": "Georgian",
+  "be": "Belarusian",
+  "tg": "Tajik",
+  "sd": "Sindhi",
+  "gu": "Gujarati",
+  "am": "Amharic",
+  "yi": "Yiddish",
+  "lo": "Lao",
+  "uz": "Uzbek",
+  "fo": "Faroese",
+  "ht": "Haitian Creole",
+  "ps": "Pashto",
+  "tk": "Turkmen",
+  "sa": "Sanskrit",
+  "lb": "Luxembourgish",
+  "my": "Burmese",
+  "bo": "Tibetan",
+  "tl": "Tagalog",
+  "mg": "Malagasy",
+  "as": "Assamese",
+  "tt": "Tatar",
+  "haw": "Hawaiian",
+  "ln": "Lingala",
+  "ha": "Hausa",
+  "ba": "Bashkir",
+  "jw": "Javanese",
+  "su": "Sundanese"
+ },
+ "recommendations": {
+  "auto": [
+   [
+    "whisper_large_v3_turbo",
+    "recommended"
+   ],
+   [
+    "qwen3_asr06_b",
+    "fastest"
+   ]
+  ],
+  "en": [
+   [
+    "parakeet_unified_en",
+    "recommended"
+   ],
+   [
+    "cohere_transcribe",
+    "most_accurate"
+   ],
+   [
+    "whisper_large_v3_turbo",
+    "vocabulary"
+   ]
+  ],
+  "zh": [
+   [
+    "qwen3_asr06_b",
+    "recommended"
+   ],
+   [
+    "sense_voice_small",
+    "fastest"
+   ],
+   [
+    "whisper_large_v3_turbo",
+    "vocabulary"
+   ]
+  ],
+  "yue": [
+   [
+    "qwen3_asr06_b",
+    "recommended"
+   ],
+   [
+    "whisper_large_v3_turbo",
+    "vocabulary"
+   ]
+  ],
+  "ja": [
+   [
+    "whisper_large_v3_turbo",
+    "recommended"
+   ],
+   [
+    "sense_voice_small",
+    "fastest"
+   ]
+  ],
+  "ko": [
+   [
+    "qwen3_asr06_b",
+    "recommended"
+   ],
+   [
+    "whisper_large_v3_turbo",
+    "vocabulary"
+   ]
+  ],
+  "es": [
+   [
+    "parakeet_v3",
+    "recommended"
+   ],
+   [
+    "whisper_large_v3_turbo",
+    "vocabulary"
+   ]
+  ],
+  "fr": [
+   [
+    "parakeet_v3",
+    "recommended"
+   ],
+   [
+    "whisper_large_v3_turbo",
+    "vocabulary"
+   ]
+  ],
+  "de": [
+   [
+    "parakeet_v3",
+    "recommended"
+   ],
+   [
+    "whisper_large_v3_turbo",
+    "vocabulary"
+   ]
+  ],
+  "pt": [
+   [
+    "parakeet_v3",
+    "recommended"
+   ],
+   [
+    "whisper_large_v3_turbo",
+    "vocabulary"
+   ]
+  ],
+  "it": [
+   [
+    "parakeet_v3",
+    "recommended"
+   ],
+   [
+    "whisper_large_v3_turbo",
+    "vocabulary"
+   ]
+  ],
+  "ar": [
+   [
+    "whisper_large_v3_turbo",
+    "recommended"
+   ],
+   [
+    "cohere_transcribe",
+    "most_accurate"
+   ]
+  ],
+  "hi": [
+   [
+    "qwen3_asr06_b",
+    "recommended"
+   ],
+   [
+    "whisper_large_v3_turbo",
+    "vocabulary"
+   ]
+  ],
+  "bn": [
+   [
+    "whisper_large_v3_turbo",
+    "recommended"
+   ]
+  ],
+  "vi": [
+   [
+    "qwen3_asr06_b",
+    "recommended"
+   ],
+   [
+    "cohere_transcribe",
+    "most_accurate"
+   ],
+   [
+    "whisper_large_v3_turbo",
+    "vocabulary"
+   ]
+  ],
+  "ru": [
+   [
+    "gigaam_v3",
+    "recommended"
+   ],
+   [
+    "whisper_large_v3_turbo",
+    "vocabulary"
+   ]
+  ],
+  "uk": [
+   [
+    "parakeet_v3",
+    "recommended"
+   ],
+   [
+    "whisper_large_v3_turbo",
+    "vocabulary"
+   ]
+  ],
+  "nl": [
+   [
+    "parakeet_v3",
+    "recommended"
+   ],
+   [
+    "whisper_large_v3_turbo",
+    "vocabulary"
+   ]
+  ],
+  "pl": [
+   [
+    "parakeet_v3",
+    "recommended"
+   ],
+   [
+    "whisper_large_v3_turbo",
+    "vocabulary"
+   ]
+  ],
+  "tr": [
+   [
+    "whisper_large_v3_turbo",
+    "recommended"
+   ]
+  ],
+  "sv": [
+   [
+    "whisper_large_v3_turbo",
+    "recommended"
+   ],
+   [
+    "parakeet_v3",
+    "fastest"
+   ]
+  ],
+  "da": [
+   [
+    "whisper_large_v3_turbo",
+    "recommended"
+   ],
+   [
+    "parakeet_v3",
+    "fastest"
+   ]
+  ],
+  "no": [
+   [
+    "nb_whisper_medium",
+    "recommended"
+   ],
+   [
+    "whisper_large_v3_turbo",
+    "vocabulary"
+   ]
+  ],
+  "fi": [
+   [
+    "whisper_large_v3_turbo",
+    "recommended"
+   ],
+   [
+    "parakeet_v3",
+    "fastest"
+   ]
+  ],
+  "cs": [
+   [
+    "parakeet_v3",
+    "recommended"
+   ],
+   [
+    "whisper_large_v3_turbo",
+    "vocabulary"
+   ]
+  ],
+  "el": [
+   [
+    "cohere_transcribe",
+    "recommended"
+   ],
+   [
+    "whisper_large_v3_turbo",
+    "vocabulary"
+   ]
+  ],
+  "ro": [
+   [
+    "parakeet_v3",
+    "recommended"
+   ],
+   [
+    "whisper_large_v3_turbo",
+    "vocabulary"
+   ]
+  ],
+  "hu": [
+   [
+    "parakeet_v3",
+    "recommended"
+   ],
+   [
+    "whisper_large_v3_turbo",
+    "vocabulary"
+   ]
+  ],
+  "id": [
+   [
+    "qwen3_asr06_b",
+    "recommended"
+   ],
+   [
+    "whisper_large_v3_turbo",
+    "vocabulary"
+   ]
+  ],
+  "ms": [
+   [
+    "whisper_large_v3_turbo",
+    "recommended"
+   ]
+  ],
+  "th": [
+   [
+    "qwen3_asr06_b",
+    "recommended"
+   ],
+   [
+    "whisper_large_v3_turbo",
+    "vocabulary"
+   ]
+  ],
+  "fa": [
+   [
+    "whisper_large_v3_turbo",
+    "recommended"
+   ]
+  ],
+  "he": [
+   [
+    "ivrit_whisper_large_v3_turbo",
+    "recommended"
+   ],
+   [
+    "whisper_large_v3_turbo",
+    "vocabulary"
+   ]
+  ],
+  "bg": [
+   [
+    "parakeet_v3",
+    "recommended"
+   ],
+   [
+    "whisper_large_v3_turbo",
+    "vocabulary"
+   ]
+  ],
+  "hr": [
+   [
+    "parakeet_v3",
+    "recommended"
+   ],
+   [
+    "whisper_large_v3_turbo",
+    "vocabulary"
+   ]
+  ],
+  "et": [
+   [
+    "parakeet_v3",
+    "recommended"
+   ],
+   [
+    "whisper_large_v3_turbo",
+    "vocabulary"
+   ]
+  ],
+  "lv": [
+   [
+    "parakeet_v3",
+    "recommended"
+   ],
+   [
+    "whisper_large_v3_turbo",
+    "vocabulary"
+   ]
+  ],
+  "lt": [
+   [
+    "parakeet_v3",
+    "recommended"
+   ],
+   [
+    "whisper_large_v3_turbo",
+    "vocabulary"
+   ]
+  ],
+  "mt": [
+   [
+    "parakeet_v3",
+    "recommended"
+   ]
+  ],
+  "sk": [
+   [
+    "parakeet_v3",
+    "recommended"
+   ],
+   [
+    "whisper_large_v3_turbo",
+    "vocabulary"
+   ]
+  ],
+  "sl": [
+   [
+    "parakeet_v3",
+    "recommended"
+   ],
+   [
+    "whisper_large_v3_turbo",
+    "vocabulary"
+   ]
+  ],
+  "mk": [
+   [
+    "whisper_large_v3_turbo",
+    "recommended"
+   ]
+  ],
+  "fil": [
+   [
+    "whisper_large_v3_turbo",
+    "recommended"
+   ]
+  ]
+ }
+}

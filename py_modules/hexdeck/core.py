@@ -27,7 +27,8 @@ from .config import Config
 from .controller import ControllerReader
 from .hexcli import EXIT_NO_SPEECH, EXIT_NOT_RUNNING, EXIT_OK, HexCli, HexResult, find_hex, model_file, setting_value
 from .installer import Installer
-from .languages import language_info
+from .catalog import all_recommendations, model_facts
+from .languages import LANGUAGE_NAMES, LISTED_CODES, language_info
 from .model_files import RemoveError, remove_model_files
 from .service import HexService
 from .session import Account, DisplayChoice, detect_display, find_account
@@ -418,7 +419,16 @@ class HexDeck:
         if not result.ok:
             return {"ok": False, "error": result.message, "models": []}
         models = result.reply.get("models") or []
-        return {"ok": True, "models": [{**m, **language_info(m)} for m in models if isinstance(m, dict)]}
+        return {
+            "ok": True,
+            "models": [{**m, **language_info(m), **model_facts(m)} for m in models if isinstance(m, dict)],
+            # For the model guide: the languages Hex's Settings list, in
+            # order, Hex's names for every language, and its picks per
+            # language.
+            "languages": list(LISTED_CODES),
+            "language_names": dict(LANGUAGE_NAMES),
+            "recommendations": all_recommendations(),
+        }
 
     def remove_model(self, model_id: str) -> dict:
         """Delete a downloaded model's files (see ``model_files``)."""

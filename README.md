@@ -12,16 +12,20 @@ From the Quick Access Menu (`...` → HexDeck) you can:
 - **pick Hex's speech model** (Parakeet, Whisper, …) and its language;
   models that aren't downloaded yet download in the background, with progress,
   and **Downloaded models** deletes the ones you no longer use;
+- compare models before downloading one in the **Model guide**: pick the
+  language you speak and it lists Hex's picks first (*Recommended*,
+  *Fastest*, …), each with Hex's one-line description, how long you wait for
+  the text, its size, and every language it understands;
 - see what the language setting really does: models like Parakeet v3 detect
   the language themselves and show **Automatic**; models that take a language
   (Whisper, Nemotron, Qwen3-ASR, …) offer **Automatic (detect)** first;
 - **change the dictation binding**: any 1–4 controller buttons, captured by
   holding them (default **L4 + R4**, the two back grips), and choose
   *Hold to talk* or *Press to start and stop*;
-- set **Hex's keyboard shortcut** for an external keyboard;
 - choose how text arrives: **Pasting (Hex)**, any language, or **Typing
   (US keyboard)** for games that ignore paste, optionally pressing Enter;
-- install Hex, test dictation, and turn sounds and notifications on or off.
+- install Hex, test dictation, and turn sounds and notifications on or off;
+- under **Advanced**, set **Hex's keyboard shortcut** for an external keyboard.
 
 ## Install
 
@@ -115,6 +119,7 @@ Layout:
 | `py_modules/hexdeck/hexcli.py` | Runs `hex … --json` as the desktop user |
 | `py_modules/hexdeck/session.py` | Desktop account, environment, Gamescope display discovery |
 | `py_modules/hexdeck/controller.py`, `deck_hid.py` | Controller reader, combo detection, binding capture |
+| `py_modules/hexdeck/languages.py`, `catalog.py` | What Hex's picker says about each model (languages, descriptions, wait, picks), mirrored from Hex |
 | `py_modules/hexdeck/installer.py`, `ed25519.py` | Verified Hex install |
 | `py_modules/hexdeck/typer.py` | uinput virtual keyboard |
 | `src/` | Quick Access panel (React, `@decky/ui`) |
