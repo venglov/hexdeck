@@ -10,7 +10,7 @@ import {
 } from "@decky/ui";
 import { addEventListener, definePlugin, removeEventListener, toaster } from "@decky/api";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BsHexagonFill } from "react-icons/bs";
+import { BsHexagonFill, BsTrash3 } from "react-icons/bs";
 
 import {
   Capture,
@@ -215,7 +215,11 @@ function DownloadedModels({ models, busy, reloadModels }: { models: HexModel[]; 
                 disabled={busy || removing !== null}
                 onClick={() => press(model)}
               >
-                {removing === model.id ? "Deleting…" : confirming === model.id ? "Confirm" : "Delete"}
+                {removing === model.id
+                  ? "Deleting…"
+                  : confirming === model.id
+                    ? "Confirm"
+                    : <BsTrash3 aria-label={`Delete ${model.name}`} style={{ display: "block", margin: "0 auto" }} />}
               </ButtonItem>
             )}
           </PanelSectionRow>
