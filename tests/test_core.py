@@ -237,6 +237,18 @@ def test_models_say_what_their_language_setting_does(deck):
     assert unified["language_mode"] == "fixed" and unified["language_choices"] == ["en"]
 
 
+def test_models_come_with_hex_picker_facts(deck):
+    deck.refresh_session()
+    answer = deck.list_models()
+    models = {m["id"]: m for m in answer["models"]}
+    assert models["parakeet_v3"]["description"].startswith("25 European languages")
+    assert models["parakeet_v3"]["supported_languages"] == ["en", "de", "ru"]
+    assert models["whisper_large_v3_turbo"]["wait"] == "2 s wait"
+    assert models["nemotron_3_5_asr"]["wait"] == "No wait"
+    assert answer["language_names"]["de"] == "German"
+    assert answer["recommendations"]["en"][0] == ["parakeet_unified_en", "recommended"]
+
+
 def test_auto_language_goes_to_hex(deck, home):
     deck.refresh_session()
     deck.select_model("nemotron_3_5_asr", "")

@@ -9,19 +9,24 @@ transcribed on the Deck.
 
 From the Quick Access Menu (`...` → HexDeck) you can:
 
-- **pick Hex's speech model** (Parakeet, Whisper, …) and its language;
-  models that aren't downloaded yet download in the background, with progress,
-  and **Downloaded models** deletes the ones you no longer use;
-- see what the language setting really does: models like Parakeet v3 detect
-  the language themselves and show **Automatic**; models that take a language
-  (Whisper, Nemotron, Qwen3-ASR, …) offer **Automatic (detect)** first;
+- **pick Hex's speech model** (Parakeet, Whisper, …) and its language from
+  one list: the model in use and your other downloaded models come first,
+  then **More models**, with Hex's picks for your language first
+  (*Recommended*, *Fastest*, …). Each model shows Hex's one-line
+  description, how long you wait for the text, and its size; open one to see
+  every language it understands and to use, download or delete it. Models
+  download in the background, with progress;
+- set the language inside the model in use, where the model takes one
+  (Whisper, Nemotron, Qwen3-ASR, …, with **Automatic (detect)** first);
+  models like Parakeet v3 that hear the language themselves, or know only
+  one, have no setting;
 - **change the dictation binding**: any 1–4 controller buttons, captured by
   holding them (default **L4 + R4**, the two back grips), and choose
   *Hold to talk* or *Press to start and stop*;
-- set **Hex's keyboard shortcut** for an external keyboard;
 - choose how text arrives: **Pasting (Hex)**, any language, or **Typing
   (US keyboard)** for games that ignore paste, optionally pressing Enter;
-- install Hex, test dictation, and turn sounds and notifications on or off.
+- install Hex, test dictation, and turn sounds and notifications on or off;
+- under **Advanced**, set **Hex's keyboard shortcut** for an external keyboard.
 
 ## Install
 
@@ -33,8 +38,8 @@ Needs [Decky Loader](https://decky.xyz/).
    **Install Hex**: HexDeck downloads the official Linux build into
    `~/.local/bin/hex`, checking its size, SHA-256 and Ed25519 release
    signature exactly as Hex's own installer does.
-4. Under **Speech model**, choose a model. The first one downloads (about
-   0.5–1.6 GB); dictation is ready when the status says *Listening*.
+4. Under **Speech model**, open a model and choose **Download … and use**. It
+   downloads (about 0.25–2.4 GB); dictation is ready when the status says *Listening*.
 5. Focus a text field, hold **L4 + R4**, speak, let go.
 
 An existing Hex install in `~/.local/bin/hex` (from Hex's install script) is
@@ -115,6 +120,7 @@ Layout:
 | `py_modules/hexdeck/hexcli.py` | Runs `hex … --json` as the desktop user |
 | `py_modules/hexdeck/session.py` | Desktop account, environment, Gamescope display discovery |
 | `py_modules/hexdeck/controller.py`, `deck_hid.py` | Controller reader, combo detection, binding capture |
+| `py_modules/hexdeck/languages.py`, `catalog.py` | What Hex's picker says about each model (languages, descriptions, wait, picks), mirrored from Hex |
 | `py_modules/hexdeck/installer.py`, `ed25519.py` | Verified Hex install |
 | `py_modules/hexdeck/typer.py` | uinput virtual keyboard |
 | `src/` | Quick Access panel (React, `@decky/ui`) |

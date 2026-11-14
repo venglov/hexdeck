@@ -1,6 +1,5 @@
 import {
   ButtonItem,
-  DialogButton,
   DropdownItem,
   Field,
   PanelSection,
@@ -10,13 +9,15 @@ import {
   staticClasses,
 } from "@decky/ui";
 import { addEventListener, definePlugin, removeEventListener, toaster } from "@decky/api";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { BsTrash3 } from "react-icons/bs";
 
 import {
   Capture,
   HexEvent,
   HexModel,
+  ROLE_LABELS,
+  Role,
   State,
   bindingLabel,
   cancelBindingCapture,
@@ -29,6 +30,7 @@ import {
   languageSummary,
   listModels,
   megabytes,
+  modelFacts,
   parseSize,
   percent,
   removeModel,
@@ -37,6 +39,7 @@ import {
   setConfig,
   setHexSetting,
   startBindingCapture,
+  supportedLanguages,
   takeOverHex,
   testDictation,
 } from "./api";
@@ -134,19 +137,12 @@ function ProgressRow({ label, progress, detail }: { label: string; progress?: nu
   );
 }
 
+/**
+ * The language setting of the model in use, inside its row of the model
+ * list. Only models that take a language have one: a model that hears the
+ * language itself, or knows only one, shows none.
+ */
 function LanguageRow({ model, language, choose }: { model: HexModel; language?: string; choose: (language: string) => void }) {
-  if (model.language_mode === "automatic") {
-    return (
-      <PanelSectionRow>
-        <Field
-          label="Language"
-          description={`${model.name} hears which of its ${languageSummary(model)} you speak. It has no language setting.`}
-        >
-          Automatic
-        </Field>
-      </PanelSectionRow>
-    );
-  }
   if (model.language_mode !== "choice") return null;
   const current = language && model.language_choices.includes(language) ? language : undefined;
   const description = current === "auto"
@@ -157,6 +153,7 @@ function LanguageRow({ model, language, choose }: { model: HexModel; language?: 
   return (
     <PanelSectionRow>
       <DropdownItem
+        indentLevel={1}
         label="Language"
         description={description}
         menuLabel="Dictation language"
@@ -172,21 +169,90 @@ function LanguageRow({ model, language, choose }: { model: HexModel; language?: 
   );
 }
 
-/**
- * Steam's inline ButtonItem gives its button a fixed width that, in the Quick
- * Access panel, runs past the right edge (like ProgressBarWithInfo). The
- * delete button sets its own width instead, and the Field's children column
- * shrinks to it.
- */
-const DELETE_BUTTON = { width: "92px", minWidth: "0", padding: "8px 0", flexShrink: 0 } as const;
+/** Hex's picks per language, from list_models. */
+type Guide = { recommendations: Record<string, [string, Role][]> };
 
-function DownloadedModels({ models, busy, reloadModels }: { models: HexModel[]; busy: boolean; reloadModels: () => void }) {
+const ROLE_STYLE = { marginLeft: "8px", fontSize: "12px", fontWeight: 400, whiteSpace: "nowrap" } as const;
+
+function RoleBadge({ role }: { role: Role }) {
+  return (
+    <span style={{ ...ROLE_STYLE, color: role === "recommended" ? "#1a9fff" : "#8b929a" }}>
+      {ROLE_LABELS[role]}
+    </span>
+  );
+}
+
+/** Two lines like the cards in Hex's picker: why you'd pick it, then its wait, languages and size. */
+function ModelBlurb({ model, status }: { model: HexModel; status?: string }) {
+  const facts = [modelFacts(model), status].filter(Boolean).join(" · ");
+  return (
+    <>
+      {model.description && <div>{model.description}</div>}
+      <div>{facts}</div>
+    </>
+  );
+}
+
+const isPreparing = (model: HexModel, preparing: string | null) =>
+  !!preparing && (preparing === model.id || preparing === model.name);
+
+function modelStatus(model: HexModel, preparing: string | null, language: string): string {
+  if (isPreparing(model, preparing)) return "downloading";
+  // A model with a language setting says what it's set to.
+  if (model.selected && model.language_mode === "choice" && model.language_choices.includes(language)) {
+    return `in use · ${language === "auto" ? "Automatic" : languageName(language)}`;
+  }
+  if (model.selected) return "in use";
+  return model.installed ? "downloaded" : "";
+}
+
+/** How the model treats the languages it knows. */
+function languageNote(model: HexModel): string {
+  switch (model.language_mode) {
+    case "automatic": return "Hears which of these you speak, with no language setting";
+    case "choice": return model.detects_language
+      ? "Detects which of these you speak, or you pick one"
+      : "You pick which of these you speak";
+    default: return "";
+  }
+}
+
+/**
+ * The model list: the model in use and the other downloaded ones first,
+ * then (behind "More models") the rest, Hex's picks for the dictation
+ * language first with their badges. A row opens to the languages the model
+ * knows and what you can do with it: use it, download it, or delete it.
+ */
+function ModelList({ state, models, guide, choose, reloadModels, languageRow }: {
+  state: State; models: HexModel[]; guide: Guide;
+  choose: (id: string, language: string) => void; reloadModels: () => void;
+  /** Inside the opened row of the model in use: its language setting. */
+  languageRow?: ReactNode;
+}) {
+  const [open, setOpen] = useState<string | null>(null);
+  const [more, setMore] = useState(false);
   const [confirming, setConfirming] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
   const timer = useRef<number | null>(null);
   useEffect(() => () => { if (timer.current !== null) window.clearTimeout(timer.current); }, []);
+  const preparing = state.hex.model.preparing ?? null;
 
-  const press = async (model: HexModel) => {
+  const saved = state.hex.model.language ?? "";
+  const routed = guide.recommendations[saved] ? saved : "auto";
+  const picks = (guide.recommendations[routed] ?? []).filter(([id]) => models.some((model) => model.id === id));
+  const roles = new Map(picks);
+
+  const downloaded = models.filter((model) => model.installed || model.selected || isPreparing(model, preparing))
+    .sort((a, b) => Number(b.selected) - Number(a.selected));
+  const rest = models.filter((model) => !downloaded.includes(model));
+  const available = [
+    ...picks.map(([id]) => rest.find((model) => model.id === id)).filter((model): model is HexModel => !!model),
+    ...rest.filter((model) => !roles.has(model.id)),
+  ];
+  // Nothing to use yet: show every model straight away.
+  const showRest = more || downloaded.length === 0;
+
+  const remove = async (model: HexModel) => {
     if (timer.current !== null) window.clearTimeout(timer.current);
     if (confirming !== model.id) {
       setConfirming(model.id);
@@ -197,72 +263,113 @@ function DownloadedModels({ models, busy, reloadModels }: { models: HexModel[]; 
     setRemoving(model.id);
     const answer = await removeModel(model.id);
     setRemoving(null);
+    if (answer.ok) setOpen(null);
     toast(answer.ok ? `${model.name} deleted, ${model.size} freed` : answer.error ?? "Couldn't delete the model");
     reloadModels();
   };
 
-  const downloaded = models.filter((model) => model.installed);
+  const actions = (model: HexModel) => {
+    if (model.selected) {
+      return <PanelSectionRow><Field indentLevel={1} description="This is the model Hex uses." /></PanelSectionRow>;
+    }
+    if (isPreparing(model, preparing)) return null;
+    const found = (model.source ?? "").startsWith("found");
+    return (
+      <>
+        <PanelSectionRow>
+          <ButtonItem layout="below" disabled={!!preparing} onClick={() => choose(model.id, "")}>
+            {model.installed ? `Use ${model.name}` : `Download ${model.size} and use`}
+          </ButtonItem>
+        </PanelSectionRow>
+        {model.installed && !found && (
+          <PanelSectionRow>
+            <ButtonItem layout="below" disabled={!!preparing || removing !== null} onClick={() => remove(model)}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+                <BsTrash3 />
+                {removing === model.id
+                  ? "Deleting…"
+                  : confirming === model.id ? `Press again to delete ${model.size}` : `Delete (${model.size})`}
+              </span>
+            </ButtonItem>
+          </PanelSectionRow>
+        )}
+        {model.installed && found && (
+          <PanelSectionRow>
+            <Field indentLevel={1} description="Another app downloaded this file, so HexDeck leaves it alone." />
+          </PanelSectionRow>
+        )}
+        {model.installed && !found && preparing && (
+          <PanelSectionRow>
+            <Field indentLevel={1} description="Models can be deleted once the download finishes." />
+          </PanelSectionRow>
+        )}
+      </>
+    );
+  };
+
+  const row = (model: HexModel) => {
+    const expanded = open === model.id;
+    const role = roles.get(model.id);
+    const languages = supportedLanguages(model);
+    const note = languageNote(model);
+    return (
+      <Fragment key={model.id}>
+        <PanelSectionRow>
+          <Field
+            focusable
+            highlightOnFocus
+            label={<span>{model.name}{role && <RoleBadge role={role} />}</span>}
+            description={<ModelBlurb model={model} status={modelStatus(model, preparing, saved)} />}
+            onActivate={() => { setOpen(expanded ? null : model.id); setConfirming(null); }}
+            onOKActionDescription={expanded ? "Hide details" : "Details"}
+          />
+        </PanelSectionRow>
+        {expanded && (
+          <>
+            <PanelSectionRow>
+              <Field
+                indentLevel={1}
+                label={`Languages (${languages.length})`}
+                description={(
+                  <>
+                    {note && <div>{note}:</div>}
+                    <div>{languages.map(languageName).join(", ") || "Hex doesn't say"}</div>
+                    {role && routed !== "auto" && <div>Hex's pick for {languageName(routed)}: {ROLE_LABELS[role].toLowerCase()}</div>}
+                  </>
+                )}
+              />
+            </PanelSectionRow>
+            {model.selected && languageRow}
+            {actions(model)}
+          </>
+        )}
+      </Fragment>
+    );
+  };
+
   return (
     <>
-      {downloaded.map((model) => {
-        const found = (model.source ?? "").startsWith("found");
-        const description = model.selected
-          ? `${model.size} · in use`
-          : found
-            ? `${model.size} · another app's file`
-            : confirming === model.id
-              ? `Press again to delete ${model.size}`
-              : model.size;
-        return (
-          <PanelSectionRow key={model.id}>
-            {model.selected || found ? (
-              <Field label={model.name} description={description} />
-            ) : (
-              <Field
-                label={model.name}
-                description={description}
-                childrenLayout="inline"
-                childrenContainerWidth="min"
-              >
-                <DialogButton
-                  aria-label={`Delete ${model.name}`}
-                  disabled={busy || removing !== null}
-                  onClick={() => press(model)}
-                  style={DELETE_BUTTON}
-                >
-                  {removing === model.id
-                    ? "Deleting…"
-                    : confirming === model.id
-                      ? "Confirm"
-                      : <BsTrash3 style={{ display: "block", margin: "0 auto" }} />}
-                </DialogButton>
-              </Field>
-            )}
-          </PanelSectionRow>
-        );
-      })}
-      {!downloaded.some((model) => !model.selected) && (
+      {downloaded.map(row)}
+      {downloaded.length > 0 && rest.length > 0 && (
         <PanelSectionRow>
-          <Field description="Only the model in use is downloaded." />
+          <ButtonItem layout="below" onClick={() => setMore(!more)}>
+            {more ? "Fewer models" : `More models (${rest.length})`}
+          </ButtonItem>
         </PanelSectionRow>
       )}
-      {busy && downloaded.some((model) => !model.selected) && (
-        <PanelSectionRow>
-          <Field description="Models can be deleted once the download finishes." />
-        </PanelSectionRow>
-      )}
+      {showRest && available.map(row)}
     </>
   );
 }
 
-function ModelSection({ state, models, reloadModels }: { state: State; models: HexModel[]; reloadModels: () => void }) {
-  const [managing, setManaging] = useState(false);
+function ModelSection({ state, models, guide, reloadModels }: {
+  state: State; models: HexModel[]; guide: Guide; reloadModels: () => void;
+}) {
   const selected = models.find((model) => model.selected) ?? models.find((model) => model.id === state.hex.model.id);
   const preparing = state.hex.model.preparing;
   const preparingModel = models.find((model) => model.id === preparing || model.name === preparing);
   const total = preparingModel ? parseSize(preparingModel.size) : null;
   const received = state.hex.model.downloaded_bytes ?? 0;
-  const downloadedCount = models.filter((model) => model.installed).length;
 
   const choose = async (id: string, language: string) => {
     const answer = await selectModel(id, language);
@@ -283,25 +390,6 @@ function ModelSection({ state, models, reloadModels }: { state: State; models: H
 
   return (
     <PanelSection title="Speech model">
-      <PanelSectionRow>
-        <DropdownItem
-          label="Model"
-          description={selected
-            ? `${selected.size} · ${languageSummary(selected)}${selected.installed ? "" : " · not downloaded"}`
-            : undefined}
-          menuLabel="Hex speech model"
-          rgOptions={models.map((model) => ({
-            data: model.id,
-            label: model.installed ? model.name : `${model.name} (download ${model.size})`,
-          }))}
-          selectedOption={selected?.id}
-          strDefaultLabel="Choose a model"
-          onChange={(option) => choose(option.data, "")}
-        />
-      </PanelSectionRow>
-      {selected && (
-        <LanguageRow model={selected} language={state.hex.model.language} choose={(language) => choose(selected.id, language)} />
-      )}
       {preparing && (
         <>
           <PanelSectionRow>
@@ -325,12 +413,16 @@ function ModelSection({ state, models, reloadModels }: { state: State; models: H
           <Field label="Model error" description={state.hex.model.error} />
         </PanelSectionRow>
       )}
-      <PanelSectionRow>
-        <ButtonItem layout="below" onClick={() => setManaging(!managing)}>
-          {managing ? "Hide downloaded models" : `Downloaded models (${downloadedCount})`}
-        </ButtonItem>
-      </PanelSectionRow>
-      {managing && <DownloadedModels models={models} busy={!!preparing} reloadModels={reloadModels} />}
+      <ModelList
+        state={state}
+        models={models}
+        guide={guide}
+        choose={choose}
+        reloadModels={reloadModels}
+        languageRow={selected && (
+          <LanguageRow model={selected} language={state.hex.model.language} choose={(language) => choose(selected.id, language)} />
+        )}
+      />
     </PanelSection>
   );
 }
@@ -338,6 +430,7 @@ function ModelSection({ state, models, reloadModels }: { state: State; models: H
 function Content() {
   const [state, setState] = useState<State | null>(null);
   const [models, setModels] = useState<HexModel[]>([]);
+  const [guide, setGuide] = useState<Guide>({ recommendations: {} });
   const [hexSettings, setHexSettings] = useState<Record<string, unknown>>({});
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
@@ -354,7 +447,10 @@ function Content() {
 
   const reloadModels = useCallback(async () => {
     const answer = await listModels();
-    if (answer.ok) setModels(answer.models);
+    if (answer.ok) {
+      setModels(answer.models);
+      setGuide({ recommendations: answer.recommendations ?? {} });
+    }
     const settings = await getHexSettings();
     if (settings.ok) setHexSettings(settings.settings);
     refresh();
@@ -493,7 +589,7 @@ function Content() {
         )}
       </PanelSection>
 
-      <ModelSection state={state} models={models} reloadModels={reloadModels} />
+      <ModelSection state={state} models={models} guide={guide} reloadModels={reloadModels} />
 
       <PanelSection title="Dictation controls">
         <BindingRow state={state} refresh={refresh} />
@@ -508,18 +604,6 @@ function Content() {
             onChange={(option) => update("trigger_mode", option.data)}
           />
         </PanelSectionRow>
-        {running && (
-          <PanelSectionRow>
-            <DropdownItem
-              label="Keyboard shortcut"
-              description="Hex's own shortcut, for a USB or Bluetooth keyboard"
-              rgOptions={shortcutOptions.map((option) => ({ data: option.value, label: option.label }))}
-              selectedOption={hotkey}
-              strDefaultLabel="—"
-              onChange={(option) => updateHex("dictation_hotkey", option.data)}
-            />
-          </PanelSectionRow>
-        )}
         {running && (
           <>
             <PanelSectionRow>
@@ -585,6 +669,18 @@ function Content() {
         </PanelSectionRow>
         {advanced && (
           <>
+            {running && (
+              <PanelSectionRow>
+                <DropdownItem
+                  label="Keyboard shortcut"
+                  description="Hex's own shortcut, for a USB or Bluetooth keyboard"
+                  rgOptions={shortcutOptions.map((option) => ({ data: option.value, label: option.label }))}
+                  selectedOption={hotkey}
+                  strDefaultLabel="—"
+                  onChange={(option) => updateHex("dictation_hotkey", option.data)}
+                />
+              </PanelSectionRow>
+            )}
             <PanelSectionRow>
               <ToggleField
                 label="Hide Hex's recording pill"

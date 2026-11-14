@@ -162,5 +162,46 @@ def test_model_file_parses_hex_model_status():
 def test_language_info_for_an_unknown_model():
     from hexdeck.languages import language_info
     assert language_info({"id": "custom-1", "languages": ["en", "de"]}) == \
-        {"language_mode": "choice", "detects_language": None, "language_choices": ["en", "de"]}
+        {"language_mode": "choice", "detects_language": None, "language_choices": ["en", "de"],
+         "supported_languages": ["en", "de"]}
     assert language_info({"id": "custom-2", "languages": ["en"]})["language_mode"] == "fixed"
+
+
+def test_whisper_offers_the_languages_hex_lists_in_hex_order():
+    from hexdeck.languages import LISTED_CODES, language_info, language_name
+    whisper = language_info({"id": "whisper_large_v3_turbo", "languages": ["*"]})
+    assert whisper["supported_languages"] == list(LISTED_CODES) and len(LISTED_CODES) == 42
+    assert whisper["language_choices"] == ["auto"] + list(LISTED_CODES)
+    # Parakeet v3 hears the language itself, but still says which it knows.
+    parakeet = language_info({"id": "parakeet_v3", "languages": ["de", "en", "ru"]})
+    assert parakeet["language_choices"] == ["auto"]
+    assert parakeet["supported_languages"] == ["en", "de", "ru"]
+    # An import's unlisted language comes after the listed ones.
+    assert language_info({"id": "custom-3", "languages": ["nn", "en"]})["supported_languages"] == ["en", "nn"]
+    assert language_name("zh") == "Mandarin Chinese"
+    assert language_name("nn") == "Norwegian Nynorsk"
+    assert language_name("xx") == "xx"
+
+
+def test_model_facts_match_hex_picker():
+    from hexdeck.catalog import model_facts
+    whisper = model_facts({"id": "whisper_large_v3_turbo"})
+    assert whisper["description"] == "Almost any language, and it reads your vocabulary"
+    assert whisper["wait"] == "2 s wait"
+    assert model_facts({"id": "parakeet_v3"})["wait"] == "Under 1 s wait"
+    assert model_facts({"id": "granite_speech_5"})["wait"] == "1 s wait"
+    assert model_facts({"id": "nemotron_3_5_asr"})["wait"] == "No wait"
+    assert model_facts({"id": "custom-1", "streams": True})["wait"] == "No wait"
+    assert model_facts({"id": "custom-1"}) == {"description": "", "wait": None, "wait_seconds": None}
+
+
+def test_recommendations_follow_hex_routing():
+    from hexdeck.catalog import all_recommendations, recommendations
+    assert recommendations("auto") == [["whisper_large_v3_turbo", "recommended"], ["qwen3_asr06_b", "fastest"]]
+    assert recommendations("en")[0] == ["parakeet_unified_en", "recommended"]
+    assert recommendations("ru")[0] == ["gigaam_v3", "recommended"]
+    assert recommendations("de")[0] == ["parakeet_v3", "recommended"]  # Parakeet v3's languages
+    assert recommendations("th")[0] == ["qwen3_asr06_b", "recommended"]  # Qwen's languages
+    assert recommendations("bn") == [["whisper_large_v3_turbo", "recommended"]]
+    assert recommendations("sv") == [["whisper_large_v3_turbo", "recommended"], ["parakeet_v3", "fastest"]]
+    assert len(all_recommendations()) == 43
