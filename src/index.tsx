@@ -137,19 +137,12 @@ function ProgressRow({ label, progress, detail }: { label: string; progress?: nu
   );
 }
 
+/**
+ * The language setting of the model in use, inside its row of the model
+ * list. Only models that take a language have one: a model that hears the
+ * language itself, or knows only one, shows none.
+ */
 function LanguageRow({ model, language, choose }: { model: HexModel; language?: string; choose: (language: string) => void }) {
-  if (model.language_mode === "automatic") {
-    return (
-      <PanelSectionRow>
-        <Field
-          label="Language"
-          description={`${model.name} hears which of its ${languageSummary(model)} you speak. It has no language setting.`}
-        >
-          Automatic
-        </Field>
-      </PanelSectionRow>
-    );
-  }
   if (model.language_mode !== "choice") return null;
   const current = language && model.language_choices.includes(language) ? language : undefined;
   const description = current === "auto"
@@ -160,6 +153,7 @@ function LanguageRow({ model, language, choose }: { model: HexModel; language?: 
   return (
     <PanelSectionRow>
       <DropdownItem
+        indentLevel={1}
         label="Language"
         description={description}
         menuLabel="Dictation language"
@@ -202,8 +196,12 @@ function ModelBlurb({ model, status }: { model: HexModel; status?: string }) {
 const isPreparing = (model: HexModel, preparing: string | null) =>
   !!preparing && (preparing === model.id || preparing === model.name);
 
-function modelStatus(model: HexModel, preparing: string | null): string {
+function modelStatus(model: HexModel, preparing: string | null, language: string): string {
   if (isPreparing(model, preparing)) return "downloading";
+  // A model with a language setting says what it's set to.
+  if (model.selected && model.language_mode === "choice" && model.language_choices.includes(language)) {
+    return `in use · ${language === "auto" ? "Automatic" : languageName(language)}`;
+  }
   if (model.selected) return "in use";
   return model.installed ? "downloaded" : "";
 }
@@ -228,7 +226,7 @@ function languageNote(model: HexModel): string {
 function ModelList({ state, models, guide, choose, reloadModels, languageRow }: {
   state: State; models: HexModel[]; guide: Guide;
   choose: (id: string, language: string) => void; reloadModels: () => void;
-  /** Shown under the model in use: its language setting. */
+  /** Inside the opened row of the model in use: its language setting. */
   languageRow?: ReactNode;
 }) {
   const [open, setOpen] = useState<string | null>(null);
@@ -321,7 +319,7 @@ function ModelList({ state, models, guide, choose, reloadModels, languageRow }: 
             focusable
             highlightOnFocus
             label={<span>{model.name}{role && <RoleBadge role={role} />}</span>}
-            description={<ModelBlurb model={model} status={modelStatus(model, preparing)} />}
+            description={<ModelBlurb model={model} status={modelStatus(model, preparing, saved)} />}
             onActivate={() => { setOpen(expanded ? null : model.id); setConfirming(null); }}
             onOKActionDescription={expanded ? "Hide details" : "Details"}
           />
@@ -341,10 +339,10 @@ function ModelList({ state, models, guide, choose, reloadModels, languageRow }: 
                 )}
               />
             </PanelSectionRow>
+            {model.selected && languageRow}
             {actions(model)}
           </>
         )}
-        {model.selected && languageRow}
       </Fragment>
     );
   };

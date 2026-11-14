@@ -16,9 +16,10 @@ From the Quick Access Menu (`...` → HexDeck) you can:
   description, how long you wait for the text, and its size; open one to see
   every language it understands and to use, download or delete it. Models
   download in the background, with progress;
-- see what the language setting really does: models like Parakeet v3 detect
-  the language themselves and show **Automatic**; models that take a language
-  (Whisper, Nemotron, Qwen3-ASR, …) offer **Automatic (detect)** first;
+- set the language inside the model in use, where the model takes one
+  (Whisper, Nemotron, Qwen3-ASR, …, with **Automatic (detect)** first);
+  models like Parakeet v3 that hear the language themselves, or know only
+  one, have no setting;
 - **change the dictation binding**: any 1–4 controller buttons, captured by
   holding them (default **L4 + R4**, the two back grips), and choose
   *Hold to talk* or *Press to start and stop*;
