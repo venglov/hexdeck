@@ -28,7 +28,7 @@ from .controller import ControllerReader
 from .hexcli import EXIT_NO_SPEECH, EXIT_NOT_RUNNING, EXIT_OK, HexCli, HexResult, find_hex, model_file, setting_value
 from .installer import Installer
 from .catalog import all_recommendations, model_facts
-from .languages import LANGUAGE_NAMES, LISTED_CODES, language_info
+from .languages import LANGUAGE_NAMES, language_info
 from .model_files import RemoveError, remove_model_files
 from .service import HexService
 from .session import Account, DisplayChoice, detect_display, find_account
@@ -422,10 +422,8 @@ class HexDeck:
         return {
             "ok": True,
             "models": [{**m, **language_info(m), **model_facts(m)} for m in models if isinstance(m, dict)],
-            # For the model guide: the languages Hex's Settings list, in
-            # order, Hex's names for every language, and its picks per
-            # language.
-            "languages": list(LISTED_CODES),
+            # For the model list: Hex's names for every language, and its
+            # picks per language.
             "language_names": dict(LANGUAGE_NAMES),
             "recommendations": all_recommendations(),
         }

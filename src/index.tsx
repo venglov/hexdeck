@@ -1,6 +1,5 @@
 import {
   ButtonItem,
-  DialogButton,
   DropdownItem,
   Field,
   PanelSection,
@@ -10,7 +9,7 @@ import {
   staticClasses,
 } from "@decky/ui";
 import { addEventListener, definePlugin, removeEventListener, toaster } from "@decky/api";
-import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { BsTrash3 } from "react-icons/bs";
 
 import {
@@ -176,91 +175,8 @@ function LanguageRow({ model, language, choose }: { model: HexModel; language?: 
   );
 }
 
-/**
- * Steam's inline ButtonItem gives its button a fixed width that, in the Quick
- * Access panel, runs past the right edge (like ProgressBarWithInfo). The
- * delete button sets its own width instead, and the Field's children column
- * shrinks to it.
- */
-const DELETE_BUTTON = { width: "92px", minWidth: "0", padding: "8px 0", flexShrink: 0 } as const;
-
-function DownloadedModels({ models, busy, reloadModels }: { models: HexModel[]; busy: boolean; reloadModels: () => void }) {
-  const [confirming, setConfirming] = useState<string | null>(null);
-  const [removing, setRemoving] = useState<string | null>(null);
-  const timer = useRef<number | null>(null);
-  useEffect(() => () => { if (timer.current !== null) window.clearTimeout(timer.current); }, []);
-
-  const press = async (model: HexModel) => {
-    if (timer.current !== null) window.clearTimeout(timer.current);
-    if (confirming !== model.id) {
-      setConfirming(model.id);
-      timer.current = window.setTimeout(() => setConfirming(null), 4000);
-      return;
-    }
-    setConfirming(null);
-    setRemoving(model.id);
-    const answer = await removeModel(model.id);
-    setRemoving(null);
-    toast(answer.ok ? `${model.name} deleted, ${model.size} freed` : answer.error ?? "Couldn't delete the model");
-    reloadModels();
-  };
-
-  const downloaded = models.filter((model) => model.installed);
-  return (
-    <>
-      {downloaded.map((model) => {
-        const found = (model.source ?? "").startsWith("found");
-        const description = model.selected
-          ? `${model.size} · in use`
-          : found
-            ? `${model.size} · another app's file`
-            : confirming === model.id
-              ? `Press again to delete ${model.size}`
-              : model.size;
-        return (
-          <PanelSectionRow key={model.id}>
-            {model.selected || found ? (
-              <Field label={model.name} description={description} />
-            ) : (
-              <Field
-                label={model.name}
-                description={description}
-                childrenLayout="inline"
-                childrenContainerWidth="min"
-              >
-                <DialogButton
-                  aria-label={`Delete ${model.name}`}
-                  disabled={busy || removing !== null}
-                  onClick={() => press(model)}
-                  style={DELETE_BUTTON}
-                >
-                  {removing === model.id
-                    ? "Deleting…"
-                    : confirming === model.id
-                      ? "Confirm"
-                      : <BsTrash3 style={{ display: "block", margin: "0 auto" }} />}
-                </DialogButton>
-              </Field>
-            )}
-          </PanelSectionRow>
-        );
-      })}
-      {!downloaded.some((model) => !model.selected) && (
-        <PanelSectionRow>
-          <Field description="Only the model in use is downloaded." />
-        </PanelSectionRow>
-      )}
-      {busy && downloaded.some((model) => !model.selected) && (
-        <PanelSectionRow>
-          <Field description="Models can be deleted once the download finishes." />
-        </PanelSectionRow>
-      )}
-    </>
-  );
-}
-
-/** Hex's languages and its picks per language, from list_models. */
-type Guide = { languages: string[]; recommendations: Record<string, [string, Role][]> };
+/** Hex's picks per language, from list_models. */
+type Guide = { recommendations: Record<string, [string, Role][]> };
 
 const ROLE_STYLE = { marginLeft: "8px", fontSize: "12px", fontWeight: 400, whiteSpace: "nowrap" } as const;
 
@@ -283,9 +199,12 @@ function ModelBlurb({ model, status }: { model: HexModel; status?: string }) {
   );
 }
 
+const isPreparing = (model: HexModel, preparing: string | null) =>
+  !!preparing && (preparing === model.id || preparing === model.name);
+
 function modelStatus(model: HexModel, preparing: string | null): string {
+  if (isPreparing(model, preparing)) return "downloading";
   if (model.selected) return "in use";
-  if (preparing && (preparing === model.id || preparing === model.name)) return "downloading";
   return model.installed ? "downloaded" : "";
 }
 
@@ -300,42 +219,100 @@ function languageNote(model: HexModel): string {
   }
 }
 
-/** The language to switch to with `model` while browsing for `language`. */
-const languageFor = (model: HexModel, language: string) => (model.language_choices.includes(language) ? language : "");
-
-const knowsLanguage = (model: HexModel, language: string) =>
-  language === "auto" ? model.detects_language === true : supportedLanguages(model).includes(language);
-
 /**
- * Every model Hex offers, ordered like Hex's picker for one language: Hex's
- * picks with their badges, then the other models that know the language,
- * then the rest. A row opens to the languages the model knows and a button
- * that switches to it, downloading it first if needed.
+ * The model list: the model in use and the other downloaded ones first,
+ * then (behind "More models") the rest, Hex's picks for the dictation
+ * language first with their badges. A row opens to the languages the model
+ * knows and what you can do with it: use it, download it, or delete it.
  */
-function ModelGuide({ state, models, guide, choose }: {
-  state: State; models: HexModel[]; guide: Guide; choose: (id: string, language: string) => void;
+function ModelList({ state, models, guide, choose, reloadModels, languageRow }: {
+  state: State; models: HexModel[]; guide: Guide;
+  choose: (id: string, language: string) => void; reloadModels: () => void;
+  /** Shown under the model in use: its language setting. */
+  languageRow?: ReactNode;
 }) {
-  const saved = state.hex.model.language;
-  const [language, setLanguage] = useState(saved && guide.languages.includes(saved) ? saved : "auto");
   const [open, setOpen] = useState<string | null>(null);
+  const [more, setMore] = useState(false);
+  const [confirming, setConfirming] = useState<string | null>(null);
+  const [removing, setRemoving] = useState<string | null>(null);
+  const timer = useRef<number | null>(null);
+  useEffect(() => () => { if (timer.current !== null) window.clearTimeout(timer.current); }, []);
   const preparing = state.hex.model.preparing ?? null;
 
-  const picks = (guide.recommendations[language] ?? []).filter(([id]) => models.some((model) => model.id === id));
+  const saved = state.hex.model.language ?? "";
+  const routed = guide.recommendations[saved] ? saved : "auto";
+  const picks = (guide.recommendations[routed] ?? []).filter(([id]) => models.some((model) => model.id === id));
   const roles = new Map(picks);
-  const rest = models.filter((model) => !roles.has(model.id));
-  const fitting = [
-    ...picks.map(([id]) => models.find((model) => model.id === id) as HexModel),
-    ...rest.filter((model) => knowsLanguage(model, language)),
+
+  const downloaded = models.filter((model) => model.installed || model.selected || isPreparing(model, preparing))
+    .sort((a, b) => Number(b.selected) - Number(a.selected));
+  const rest = models.filter((model) => !downloaded.includes(model));
+  const available = [
+    ...picks.map(([id]) => rest.find((model) => model.id === id)).filter((model): model is HexModel => !!model),
+    ...rest.filter((model) => !roles.has(model.id)),
   ];
-  const others = rest.filter((model) => !knowsLanguage(model, language));
-  const othersNote = language === "auto"
-    ? "These don't detect the language; you tell them which one you speak"
-    : `These don't know ${languageName(language)}`;
+  // Nothing to use yet: show every model straight away.
+  const showRest = more || downloaded.length === 0;
+
+  const remove = async (model: HexModel) => {
+    if (timer.current !== null) window.clearTimeout(timer.current);
+    if (confirming !== model.id) {
+      setConfirming(model.id);
+      timer.current = window.setTimeout(() => setConfirming(null), 4000);
+      return;
+    }
+    setConfirming(null);
+    setRemoving(model.id);
+    const answer = await removeModel(model.id);
+    setRemoving(null);
+    if (answer.ok) setOpen(null);
+    toast(answer.ok ? `${model.name} deleted, ${model.size} freed` : answer.error ?? "Couldn't delete the model");
+    reloadModels();
+  };
+
+  const actions = (model: HexModel) => {
+    if (model.selected) {
+      return <PanelSectionRow><Field indentLevel={1} description="This is the model Hex uses." /></PanelSectionRow>;
+    }
+    if (isPreparing(model, preparing)) return null;
+    const found = (model.source ?? "").startsWith("found");
+    return (
+      <>
+        <PanelSectionRow>
+          <ButtonItem layout="below" disabled={!!preparing} onClick={() => choose(model.id, "")}>
+            {model.installed ? `Use ${model.name}` : `Download ${model.size} and use`}
+          </ButtonItem>
+        </PanelSectionRow>
+        {model.installed && !found && (
+          <PanelSectionRow>
+            <ButtonItem layout="below" disabled={!!preparing || removing !== null} onClick={() => remove(model)}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+                <BsTrash3 />
+                {removing === model.id
+                  ? "Deleting…"
+                  : confirming === model.id ? `Press again to delete ${model.size}` : `Delete (${model.size})`}
+              </span>
+            </ButtonItem>
+          </PanelSectionRow>
+        )}
+        {model.installed && found && (
+          <PanelSectionRow>
+            <Field indentLevel={1} description="Another app downloaded this file, so HexDeck leaves it alone." />
+          </PanelSectionRow>
+        )}
+        {model.installed && !found && preparing && (
+          <PanelSectionRow>
+            <Field indentLevel={1} description="Models can be deleted once the download finishes." />
+          </PanelSectionRow>
+        )}
+      </>
+    );
+  };
 
   const row = (model: HexModel) => {
     const expanded = open === model.id;
     const role = roles.get(model.id);
-    const names = supportedLanguages(model).map(languageName).join(", ");
+    const languages = supportedLanguages(model);
     const note = languageNote(model);
     return (
       <Fragment key={model.id}>
@@ -345,7 +322,7 @@ function ModelGuide({ state, models, guide, choose }: {
             highlightOnFocus
             label={<span>{model.name}{role && <RoleBadge role={role} />}</span>}
             description={<ModelBlurb model={model} status={modelStatus(model, preparing)} />}
-            onActivate={() => setOpen(expanded ? null : model.id)}
+            onActivate={() => { setOpen(expanded ? null : model.id); setConfirming(null); }}
             onOKActionDescription={expanded ? "Hide details" : "Details"}
           />
         </PanelSectionRow>
@@ -354,49 +331,35 @@ function ModelGuide({ state, models, guide, choose }: {
             <PanelSectionRow>
               <Field
                 indentLevel={1}
-                label={`Languages (${supportedLanguages(model).length})`}
-                description={<>{note && <div>{note}:</div>}<div>{names || "Hex doesn't say"}</div></>}
+                label={`Languages (${languages.length})`}
+                description={(
+                  <>
+                    {note && <div>{note}:</div>}
+                    <div>{languages.map(languageName).join(", ") || "Hex doesn't say"}</div>
+                    {role && routed !== "auto" && <div>Hex's pick for {languageName(routed)}: {ROLE_LABELS[role].toLowerCase()}</div>}
+                  </>
+                )}
               />
             </PanelSectionRow>
-            <PanelSectionRow>
-              {model.selected ? (
-                <Field indentLevel={1} description="This is the model Hex uses." />
-              ) : (
-                <ButtonItem layout="below" disabled={!!preparing} onClick={() => choose(model.id, languageFor(model, language))}>
-                  {model.installed ? `Use ${model.name}` : `Download ${model.size} and use`}
-                </ButtonItem>
-              )}
-            </PanelSectionRow>
+            {actions(model)}
           </>
         )}
+        {model.selected && languageRow}
       </Fragment>
     );
   };
 
   return (
     <>
-      <PanelSectionRow>
-        <DropdownItem
-          label="Models for"
-          description="Hex's picks for it come first"
-          menuLabel="Show models for"
-          rgOptions={["auto", ...guide.languages].map((code) => ({
-            data: code,
-            label: code === "auto" ? "Any language (detected)" : languageName(code),
-          }))}
-          selectedOption={language}
-          onChange={(option) => { setLanguage(option.data); setOpen(null); }}
-        />
-      </PanelSectionRow>
-      {fitting.map(row)}
-      {others.length > 0 && (
-        <>
-          <PanelSectionRow>
-            <Field label="Other models" description={othersNote} />
-          </PanelSectionRow>
-          {others.map(row)}
-        </>
+      {downloaded.map(row)}
+      {downloaded.length > 0 && rest.length > 0 && (
+        <PanelSectionRow>
+          <ButtonItem layout="below" onClick={() => setMore(!more)}>
+            {more ? "Fewer models" : `More models (${rest.length})`}
+          </ButtonItem>
+        </PanelSectionRow>
       )}
+      {showRest && available.map(row)}
     </>
   );
 }
@@ -404,14 +367,11 @@ function ModelGuide({ state, models, guide, choose }: {
 function ModelSection({ state, models, guide, reloadModels }: {
   state: State; models: HexModel[]; guide: Guide; reloadModels: () => void;
 }) {
-  const [managing, setManaging] = useState(false);
-  const [browsing, setBrowsing] = useState(false);
   const selected = models.find((model) => model.selected) ?? models.find((model) => model.id === state.hex.model.id);
   const preparing = state.hex.model.preparing;
   const preparingModel = models.find((model) => model.id === preparing || model.name === preparing);
   const total = preparingModel ? parseSize(preparingModel.size) : null;
   const received = state.hex.model.downloaded_bytes ?? 0;
-  const downloadedCount = models.filter((model) => model.installed).length;
 
   const choose = async (id: string, language: string) => {
     const answer = await selectModel(id, language);
@@ -432,25 +392,6 @@ function ModelSection({ state, models, guide, reloadModels }: {
 
   return (
     <PanelSection title="Speech model">
-      <PanelSectionRow>
-        <DropdownItem
-          label="Model"
-          description={selected
-            ? <ModelBlurb model={selected} status={selected.installed ? undefined : "not downloaded"} />
-            : undefined}
-          menuLabel="Hex speech model"
-          rgOptions={models.map((model) => ({
-            data: model.id,
-            label: model.installed ? model.name : `${model.name} (download ${model.size})`,
-          }))}
-          selectedOption={selected?.id}
-          strDefaultLabel="Choose a model"
-          onChange={(option) => choose(option.data, "")}
-        />
-      </PanelSectionRow>
-      {selected && (
-        <LanguageRow model={selected} language={state.hex.model.language} choose={(language) => choose(selected.id, language)} />
-      )}
       {preparing && (
         <>
           <PanelSectionRow>
@@ -474,18 +415,16 @@ function ModelSection({ state, models, guide, reloadModels }: {
           <Field label="Model error" description={state.hex.model.error} />
         </PanelSectionRow>
       )}
-      <PanelSectionRow>
-        <ButtonItem layout="below" onClick={() => setBrowsing(!browsing)}>
-          {browsing ? "Hide the model guide" : `Model guide (${models.length})`}
-        </ButtonItem>
-      </PanelSectionRow>
-      {browsing && <ModelGuide state={state} models={models} guide={guide} choose={choose} />}
-      <PanelSectionRow>
-        <ButtonItem layout="below" onClick={() => setManaging(!managing)}>
-          {managing ? "Hide downloaded models" : `Downloaded models (${downloadedCount})`}
-        </ButtonItem>
-      </PanelSectionRow>
-      {managing && <DownloadedModels models={models} busy={!!preparing} reloadModels={reloadModels} />}
+      <ModelList
+        state={state}
+        models={models}
+        guide={guide}
+        choose={choose}
+        reloadModels={reloadModels}
+        languageRow={selected && (
+          <LanguageRow model={selected} language={state.hex.model.language} choose={(language) => choose(selected.id, language)} />
+        )}
+      />
     </PanelSection>
   );
 }
@@ -493,7 +432,7 @@ function ModelSection({ state, models, guide, reloadModels }: {
 function Content() {
   const [state, setState] = useState<State | null>(null);
   const [models, setModels] = useState<HexModel[]>([]);
-  const [guide, setGuide] = useState<Guide>({ languages: [], recommendations: {} });
+  const [guide, setGuide] = useState<Guide>({ recommendations: {} });
   const [hexSettings, setHexSettings] = useState<Record<string, unknown>>({});
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
@@ -512,7 +451,7 @@ function Content() {
     const answer = await listModels();
     if (answer.ok) {
       setModels(answer.models);
-      setGuide({ languages: answer.languages ?? [], recommendations: answer.recommendations ?? {} });
+      setGuide({ recommendations: answer.recommendations ?? {} });
     }
     const settings = await getHexSettings();
     if (settings.ok) setHexSettings(settings.settings);

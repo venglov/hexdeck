@@ -12,7 +12,7 @@ here = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(here, "..", "py_modules"))
 
 from hexdeck.catalog import PARAKEET_V3_LANGUAGES, QWEN_LANGUAGES, all_recommendations, model_facts  # noqa: E402
-from hexdeck.languages import LANGUAGE_NAMES, LISTED_CODES, language_info  # noqa: E402
+from hexdeck.languages import LANGUAGE_NAMES, language_info  # noqa: E402
 
 COHERE = "en fr de es it pt nl pl el ar ja zh vi ko".split()
 GRANITE = "en fr de es pt it ja".split()
@@ -49,6 +49,6 @@ for model_id, name, languages, count, streams in CATALOG:
     models.append({**model, **language_info(model), **model_facts(model)})
 
 with open(os.path.join(here, "preview-models.json"), "w") as stream:
-    json.dump({"models": models, "languages": list(LISTED_CODES), "language_names": LANGUAGE_NAMES,
+    json.dump({"models": models, "language_names": LANGUAGE_NAMES,
                "recommendations": all_recommendations()}, stream, indent=1)
     stream.write("\n")

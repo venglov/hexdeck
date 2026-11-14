@@ -80,8 +80,6 @@ export type Role = "recommended" | "fastest" | "most_accurate" | "vocabulary";
 
 export type ModelList = Answer & {
   models: HexModel[];
-  /** The languages Hex's Settings list, in order. */
-  languages?: string[];
   language_names?: Record<string, string>;
   recommendations?: Record<string, [string, Role][]>;
 };

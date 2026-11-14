@@ -9,13 +9,13 @@ transcribed on the Deck.
 
 From the Quick Access Menu (`...` → HexDeck) you can:
 
-- **pick Hex's speech model** (Parakeet, Whisper, …) and its language;
-  models that aren't downloaded yet download in the background, with progress,
-  and **Downloaded models** deletes the ones you no longer use;
-- compare models before downloading one in the **Model guide**: pick the
-  language you speak and it lists Hex's picks first (*Recommended*,
-  *Fastest*, …), each with Hex's one-line description, how long you wait for
-  the text, its size, and every language it understands;
+- **pick Hex's speech model** (Parakeet, Whisper, …) and its language from
+  one list: the model in use and your other downloaded models come first,
+  then **More models**, with Hex's picks for your language first
+  (*Recommended*, *Fastest*, …). Each model shows Hex's one-line
+  description, how long you wait for the text, and its size; open one to see
+  every language it understands and to use, download or delete it. Models
+  download in the background, with progress;
 - see what the language setting really does: models like Parakeet v3 detect
   the language themselves and show **Automatic**; models that take a language
   (Whisper, Nemotron, Qwen3-ASR, …) offer **Automatic (detect)** first;
@@ -37,8 +37,8 @@ Needs [Decky Loader](https://decky.xyz/).
    **Install Hex**: HexDeck downloads the official Linux build into
    `~/.local/bin/hex`, checking its size, SHA-256 and Ed25519 release
    signature exactly as Hex's own installer does.
-4. Under **Speech model**, choose a model. The first one downloads (about
-   0.5–1.6 GB); dictation is ready when the status says *Listening*.
+4. Under **Speech model**, open a model and choose **Download … and use**. It
+   downloads (about 0.25–2.4 GB); dictation is ready when the status says *Listening*.
 5. Focus a text field, hold **L4 + R4**, speak, let go.
 
 An existing Hex install in `~/.local/bin/hex` (from Hex's install script) is

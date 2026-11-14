@@ -245,7 +245,6 @@ def test_models_come_with_hex_picker_facts(deck):
     assert models["parakeet_v3"]["supported_languages"] == ["en", "de", "ru"]
     assert models["whisper_large_v3_turbo"]["wait"] == "2 s wait"
     assert models["nemotron_3_5_asr"]["wait"] == "No wait"
-    assert answer["languages"][:2] == ["en", "zh"]
     assert answer["language_names"]["de"] == "German"
     assert answer["recommendations"]["en"][0] == ["parakeet_unified_en", "recommended"]
 
