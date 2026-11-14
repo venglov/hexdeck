@@ -307,3 +307,76 @@ def test_remove_model_leaves_other_apps_files_alone(deck, home):
     assert "another app" in deck.remove_model("custom-0123456789abcdef")["error"]
     assert deck.remove_model("custom-fedcba9876543210")["ok"]
     assert "model remove custom-fedcba9876543210 DISPLAY=:1" in calls(home)
+
+
+def test_enter_follows_a_paste_when_asked(deck, home):
+    deck.refresh_session()
+    deck.set_config("press_enter", True)
+    deck._report_pasted()
+    assert deck.keyboard.typed == [("", True)]
+    assert deck.events[-1] == {"kind": "done", "text": "Hello from Hex.", "notify": True}
+
+
+def test_paste_again_uses_hex_or_the_keyboard(deck, home):
+    deck.refresh_session()
+    assert deck.paste_last()["ok"]
+    assert "paste-last DISPLAY=:1" in calls(home)
+    assert deck.keyboard.typed == []
+    deck.set_config("output", "type")
+    assert not deck.paste_last()["ok"]  # nothing dictated yet
+    deck.last_text = "Once more"
+    assert deck.paste_last()["ok"]
+    assert deck.keyboard.typed == [("Once more", False)]
+
+
+def test_a_finished_download_is_announced(deck, home):
+    deck.refresh_session()
+    write_fake_state(home, preparing="nemotron_3_5_asr")
+    deck.refresh_status(force=True)
+    assert "model_ready" not in kinds(deck)
+    write_fake_state(home, preparing=None)
+    deck.refresh_status(force=True)
+    assert kinds(deck).count("model_ready") == 1
+    deck.refresh_status(force=True)
+    assert kinds(deck).count("model_ready") == 1
+
+
+def test_a_cancelled_download_is_not_announced(deck, home):
+    deck.refresh_session()
+    write_fake_state(home, preparing="nemotron_3_5_asr")
+    deck.refresh_status(force=True)
+    assert deck.cancel_model_download()["ok"]
+    deck.refresh_status(force=True)
+    assert "model_ready" not in kinds(deck)
+
+
+def test_hex_settings_come_with_hex_choices(deck, home):
+    deck.refresh_session()
+    answer = deck.get_hex_settings()
+    assert answer["settings"]["microphone"] == "system-default"
+    assert answer["settings"]["avoid_bluetooth_microphone"] is True
+    assert answer["choices"]["microphone"][1] == {"value": "Steam Deck Microphone", "label": "Steam Deck Microphone"}
+    assert [c["value"] for c in answer["choices"]["recording_audio_behavior"]] == ["nothing", "duck", "mute"]
+    assert deck.set_hex_setting("recording_audio_behavior", "duck")["ok"]
+    assert not deck.set_hex_setting("history_retention", "forever")["ok"]
+
+
+def test_vocabulary_round_trip(deck, home):
+    deck.refresh_session()
+    assert deck.get_vocabulary() == {"ok": True, "terms": []}
+    assert deck.add_vocabulary("  Rivia  ")["ok"]
+    assert not deck.add_vocabulary("--force")["ok"]
+    assert not deck.add_vocabulary("")["ok"]
+    assert deck.get_vocabulary()["terms"] == ["Rivia"]
+    assert deck.remove_vocabulary("rivia")["ok"]
+    assert deck.get_vocabulary()["terms"] == []
+
+
+def test_state_reports_memory_and_the_model_list_free_space(deck):
+    deck.refresh_session()
+    assert deck.get_state()["hex"]["memory"] == 412000000
+    assert deck.get_state()["config"]["speak_language"] == ""
+    assert deck.list_models()["disk_free"] > 0
+    assert deck.set_config("speak_language", "de")["value"] == "de"
+    with pytest.raises(ValueError):
+        deck.set_config("speak_language", "klingon")

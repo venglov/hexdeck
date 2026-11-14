@@ -44,7 +44,9 @@ def load():
     except (OSError, ValueError):
         state = {"recording": False, "model": "parakeet_v3", "language": "en",
                  "settings": {"indicator_position": "top", "sound_effects": True,
-                              "dictation_hotkey": "option+space"}}
+                              "dictation_hotkey": "option+space",
+                              "microphone": "system-default", "avoid_bluetooth_microphone": True,
+                              "recording_audio_behavior": "nothing"}}
         install_file("parakeet_v3")
         save(state)
         return state
@@ -111,7 +113,8 @@ if args == ["status"]:
     reply(0, status="status", listener={"running": True, "status": "Listening"},
           capture={"state": "recording" if state["recording"] else "idle", "pending_jobs": 0},
           model={"id": state["model"], "name": state["model"], "language": state.get("language", "en"),
-                 "installed": True, "preparing": state.get("preparing"), "downloaded_bytes": 0})
+                 "installed": True, "preparing": state.get("preparing"), "downloaded_bytes": 0},
+          memory_footprint_bytes=412000000, update="current")
 if args == ["quit", "--force"]:
     os.unlink(pid_path)
     reply(0, status="done", message="Quit", changed=True)
@@ -149,6 +152,31 @@ if args[:2] in (["model", "use"], ["model", "install"]):
         install_file(args[2])
     save(state)
     reply(0, status="done", message=f"Using {args[2]}", changed=True)
+if args == ["settings", "list"]:
+    choices = {"microphone": ["system-default", "Steam Deck Microphone", {"value": "USB Headset", "label": "USB Headset"}],
+               "recording_audio_behavior": ["nothing", "duck", "mute"]}
+    reply(0, status="settings", settings=[
+        {"key": key, "value": value, **({"choices": choices[key]} if key in choices else {})}
+        for key, value in state["settings"].items()])
+if args == ["paste-last"]:
+    reply(0, status="done", message="Pasted", changed=True)
+if args[:2] == ["model", "cancel"]:
+    state["preparing"] = None
+    save(state)
+    reply(0, status="done", message="Cancelled", changed=True)
+if args == ["vocabulary", "list"]:
+    reply(0, status="vocabulary", entries=[{"term": term} for term in state.get("vocabulary", [])])
+if args[:2] == ["vocabulary", "add"]:
+    terms = state.setdefault("vocabulary", [])
+    changed = args[2] not in terms
+    if changed:
+        terms.append(args[2])
+    save(state)
+    reply(0, status="done", message="Added", changed=changed)
+if args[:2] == ["vocabulary", "remove"]:
+    state["vocabulary"] = [term for term in state.get("vocabulary", []) if term.lower() != args[2].lower()]
+    save(state)
+    reply(0, status="done", message="Removed", changed=True)
 if args[:2] == ["settings", "get"]:
     key = args[2]
     reply(0, status="settings", settings=[{"key": key, "value": state["settings"].get(key)}])

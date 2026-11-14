@@ -29,6 +29,21 @@
   progress { width: 100%; }
   #toasts { position: fixed; right: 16px; bottom: 16px; display: grid; gap: 8px; width: 300px; }
   .toast { background: #23262e; border-left: 3px solid #1a9fff; padding: 8px 10px; border-radius: 3px; }
+  #page { display: none; width: 854px; height: 534px; margin: 16px auto; background: #0e141b; border: 1px solid #23262e; border-radius: 6px; position: relative; overflow: hidden; }
+  #page.open { display: block; }
+  #page .pagebar { position: absolute; top: 0; left: 0; right: 0; height: 40px; display: flex; align-items: center; gap: 12px; padding: 0 16px; color: #8b929a; font-size: 12px; }
+  #page .pagebar button { width: auto; padding: 4px 10px; }
+  .tabs { display: flex; flex-direction: column; height: 100%; }
+  .tabstrip { display: flex; gap: 22px; padding: 6px 2.8vw; border-bottom: 1px solid #23262e; flex: none; }
+  .tabstrip span { cursor: pointer; color: #8b929a; padding: 4px 0; text-transform: uppercase; font-size: 12px; letter-spacing: .05em; font-weight: 700; }
+  .tabstrip span.active { color: #fff; border-bottom: 2px solid #1a9fff; }
+  .tabbody { flex: 1; min-height: 0; }
+  #legend { position: absolute; bottom: 0; left: 0; right: 0; height: 28px; background: #171d25; color: #8b929a; font-size: 12px; display: flex; gap: 18px; align-items: center; padding: 0 16px; }
+  #modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); align-items: center; justify-content: center; z-index: 5; }
+  #modal.open { display: flex; }
+  .modal { background: #23262e; border-radius: 6px; padding: 22px 26px; width: 560px; max-height: 80vh; overflow: auto; }
+  .modal .buttons { display: flex; gap: 10px; margin-top: 18px; }
+  input[type=text] { width: 100%; box-sizing: border-box; background: #0e141b; color: #fff; border: 1px solid #3d4450; padding: 7px; font: inherit; }
   #controls { width: 352px; margin: 0 auto; font-size: 12px; color: #8b929a; display: flex; gap: 6px; flex-wrap: wrap; }
   #controls button { width: auto; padding: 4px 8px; font-size: 12px; }
 </style>
@@ -43,7 +58,11 @@
   <button id="release">Release binding</button>
   <button id="uninstall">Hex not installed</button>
   <button id="external">External Hex</button>
+  <button id="nomodel">No model yet</button>
+  <button id="broken">Hex keeps exiting</button>
 </div>
+<div id="page"></div>
+<div id="modal"></div>
 <div id="toasts"></div>
 <script>
   const h = React.createElement;
@@ -52,6 +71,63 @@
 
   // --- @decky/ui stand-ins ---------------------------------------------------
   const Row = ({ children }) => h("div", { className: "row" }, children);
+  // Gamepad buttons on a focused item: Enter is A, x is X, y is Y; the legend
+  // under the page shows what they do, as Steam's footer does.
+  const legend = (props) => {
+    const node = document.getElementById("legend");
+    if (!node) return;
+    node.textContent = [["A", props.onOKActionDescription], ["X", props.onSecondaryActionDescription], ["Y", props.onOptionsActionDescription]]
+      .filter(([, text]) => text).map(([key, text]) => `(${key}) ${text}`).join("     ");
+  };
+  const Focusable = ({ children, className, style, onActivate, onClick, onSecondaryButton, onOptionsButton, ...props }) => {
+    const item = !!(onActivate || onClick);
+    return h("div", {
+      className, style, tabIndex: item ? 0 : undefined,
+      onClick: onClick || onActivate,
+      onMouseEnter: item ? () => legend(props) : undefined, onFocus: item ? () => legend(props) : undefined,
+      onKeyDown: item ? (e) => {
+        if (e.target !== e.currentTarget) return;
+        if (e.key === "Enter" && onActivate) onActivate(e);
+        if (e.key === "x" && onSecondaryButton) onSecondaryButton(e);
+        if (e.key === "y" && onOptionsButton) onOptionsButton(e);
+      } : undefined,
+    }, children);
+  };
+  const Tabs = ({ tabs, activeTab, onShowTab }) => h("div", { className: "tabs" },
+    h("div", { className: "tabstrip" }, tabs.map((tab) => h("span", {
+      key: tab.id, className: tab.id === activeTab ? "active" : undefined, onClick: () => onShowTab(tab.id) }, tab.title))),
+    h("div", { className: "tabbody" }, (tabs.find((tab) => tab.id === activeTab) || tabs[0]).content));
+  let modalRoot = null;
+  const showModal = (element) => {
+    const host = document.getElementById("modal");
+    const Close = () => { host.className = ""; if (modalRoot) modalRoot.render(null); };
+    modalRoot = modalRoot || ReactDOM.createRoot(host);
+    host.className = "open";
+    modalRoot.render(React.cloneElement(element, { closeModal: Close }));
+    return { Close };
+  };
+  const ModalRoot = ({ children }) => h("div", { className: "modal" }, children);
+  const ConfirmModal = ({ strTitle, strDescription, strOKButtonText, onOK, onCancel, closeModal }) => h("div", { className: "modal" },
+    h("div", { style: { fontSize: "18px", fontWeight: 700, marginBottom: "8px" } }, strTitle), h("div", null, strDescription),
+    h("div", { className: "buttons" },
+      h("button", { onClick: () => { closeModal(); if (onOK) onOK(); } }, strOKButtonText || "Confirm"),
+      h("button", { onClick: () => { closeModal(); if (onCancel) onCancel(); } }, "Cancel")));
+  const routes = {};
+  let pageRoot = null;
+  const closePage = () => { document.getElementById("page").className = ""; if (pageRoot) pageRoot.render(null); };
+  const Navigation = {
+    Navigate: (path) => {
+      const host = document.getElementById("page");
+      pageRoot = pageRoot || ReactDOM.createRoot(host);
+      host.className = "open";
+      pageRoot.render(h(React.Fragment, null,
+        h("div", { className: "pagebar" }, h("button", { onClick: closePage }, "(B) Back"), `Full-screen page ${path} at the Deck's 854 x 534`),
+        h(routes[path]), h("div", { id: "legend" })));
+      host.scrollIntoView({ behavior: "smooth" });
+    },
+    NavigateBack: closePage,
+    CloseSideMenus: () => {},
+  };
   const Field = ({ label, description, children, childrenLayout, focusable, onActivate, indentLevel }) => h("div", {
       className: focusable ? "focusable" : undefined, tabIndex: focusable ? 0 : undefined,
       style: indentLevel ? { paddingLeft: `${indentLevel * 16}px` } : undefined,
@@ -64,8 +140,9 @@
     staticClasses: { Title: "title" },
     PanelSection: ({ title, children }) => h("div", { className: "section" }, title ? h("div", { className: "section-title" }, title) : null, children),
     PanelSectionRow: Row,
-    Field,
-    ButtonItem: ({ children, onClick, disabled, label, description, layout }) => layout === "inline" && label
+    Field, Focusable, Tabs, showModal, ModalRoot, ConfirmModal, Navigation,
+    TextField: ({ value, placeholder, onChange }) => h("input", { type: "text", value, placeholder, onChange }),
+    ButtonItem: ({ children, onClick, disabled, label, description, layout }) => layout !== "below" && label
       ? h("div", null, h("div", { className: "field" }, h("span", { className: "label" }, label),
           h("button", { onClick, disabled, style: { width: "auto" } }, children)),
         description ? h("div", { className: "desc" }, description) : null)
@@ -74,12 +151,13 @@
       h("div", { className: "field" }, h("span", { className: "label" }, label),
         h("input", { type: "checkbox", checked: !!checked, onChange: (e) => onChange(e.target.checked) })),
       description ? h("div", { className: "desc" }, description) : null),
-    DropdownItem: ({ label, description, rgOptions, selectedOption, onChange, strDefaultLabel }) => h("div", null,
+    DropdownItem: ({ label, description, rgOptions, selectedOption, onChange, strDefaultLabel, disabled }) => h("div", null,
       h("div", { className: "field" }, h("span", { className: "label" }, label),
         h("select", {
+          disabled,
           value: selectedOption === undefined ? "" : JSON.stringify(selectedOption),
           onChange: (e) => onChange(rgOptions.find((o) => JSON.stringify(o.data) === e.target.value)),
-        }, selectedOption === undefined ? h("option", { value: "" }, strDefaultLabel || "") : null,
+        }, selectedOption === undefined || !rgOptions.some((o) => o.data === selectedOption) ? h("option", { value: "" }, strDefaultLabel || "") : null,
           rgOptions.map((o) => h("option", { key: JSON.stringify(o.data), value: JSON.stringify(o.data) }, o.label)))),
       description ? h("div", { className: "desc" }, description) : null),
     DialogButton: ({ children, onClick, disabled, style }) => h("button", { onClick, disabled, style: { ...style } }, children),
@@ -92,9 +170,11 @@
   const mock = {
     installed: true, external: false, recording: false, capture: null,
     config: { enabled: true, binding: ["L4", "R4"], trigger_mode: "hold", output: "paste", press_enter: false,
-              min_hold_ms: 300, display: "auto", hide_hex_pill: true, notifications: true, hex_path: "" },
+              min_hold_ms: 300, display: "auto", hide_hex_pill: true, notifications: true, hex_path: "", speak_language: "" },
+    nomodel: false, broken: false, vocabulary: ["Novigrad"],
     model: { id: "parakeet_v3", language: "en" }, preparing: null, downloaded: 0,
-    installed_models: ["parakeet_v3", "whisper_large_v3_turbo"], hex: { dictation_hotkey: "option+space", sound_effects: true },
+    installed_models: ["parakeet_v3", "whisper_large_v3_turbo"], hex: { dictation_hotkey: "option+space", sound_effects: true, microphone: "system-default",
+           avoid_bluetooth_microphone: true, recording_audio_behavior: "nothing" },
     last_text: "", install: { state: "idle", stage: "", error: "", version: "", received: 0, total: 0 },
   };
   // Hex's catalog as HexDeck's backend sends it: generated by
@@ -104,13 +184,15 @@
   const sizeBytes = (size) => parseFloat(size) * (size.endsWith("GB") ? 1e9 : 1e6);
   const backend = {
     get_state: () => ({
-      version: "0.3.0", config: mock.config,
+      version: "0.4.0", config: mock.config,
       session: { kind: "gamescope", display: ":1", reason: "Gamescope's main Xwayland" },
       hex: { installed: mock.installed, path: mock.installed ? "/home/deck/.local/bin/hex" : null, version: mock.installed ? "3.4.0" : null,
-             running: mock.installed, owned: !mock.external, external: mock.external, service_error: "",
-             listener: "Listening", capture: mock.recording ? "recording" : "idle",
+             running: mock.installed && mock.config.enabled && !mock.broken, owned: !mock.external, external: mock.external,
+             service_error: mock.broken ? "Hex keeps exiting; stopped restarting it. See hex-service.log" : "",
+             memory: 412000000, update: "current",
+             listener: mock.nomodel ? "Waiting for setup" : "Listening", capture: mock.recording ? "recording" : "idle",
              model: { id: mock.model.id, name: MODELS.find((m) => m.id === mock.model.id)?.name ?? mock.model.id, language: mock.model.language,
-                      installed: true, preparing: mock.preparing, downloaded_bytes: mock.downloaded, error: null },
+                      installed: !mock.nomodel, preparing: mock.preparing, downloaded_bytes: mock.downloaded, error: null },
              log: "/home/deck/homebrew/logs/HexDeck/hex-service.log" },
       controller: { device: "/dev/hidraw2", error: "", held: mock.recording ? mock.config.binding : [] },
       install: mock.install, phase: mock.recording ? "recording" : "idle", last_text: mock.last_text, last_error: "",
@@ -119,10 +201,12 @@
     set_config: (key, value) => { mock.config[key] = value; return { ok: true, key, value }; },
     list_models: async () => {
       const { models, ...rest } = await catalog;
-      return { ok: true, ...rest, models: models.map((m) => ({ ...m, installed: mock.installed_models.includes(m.id), selected: m.id === mock.model.id })) };
+      return { ok: true, ...rest, disk_free: 21.4e9, models: models.map((m) => ({ ...m,
+        installed: !mock.nomodel && mock.installed_models.includes(m.id), selected: !mock.nomodel && m.id === mock.model.id })) };
     },
     select_model: (id, language) => {
-      const installed = mock.installed_models.includes(id);
+      const installed = !mock.nomodel && mock.installed_models.includes(id);
+      if (mock.nomodel) { mock.nomodel = false; mock.installed_models = []; }
       const choices = MODELS.find((m) => m.id === id).language_choices;
       mock.model = { id, language: language || (choices.includes(mock.model.language) ? mock.model.language : choices[0]) };
       if (!installed) {
@@ -130,7 +214,11 @@
         const timer = setInterval(() => {
           const total = sizeBytes(MODELS.find((m) => m.id === id).size);
           mock.downloaded = Math.min(total, mock.downloaded + total / 8);
-          if (mock.downloaded >= total) { clearInterval(timer); mock.preparing = null; mock.installed_models.push(id); }
+          if (mock.preparing !== id) { clearInterval(timer); return; }
+          if (mock.downloaded >= total) {
+            clearInterval(timer); mock.preparing = null; mock.installed_models.push(id);
+            emit({ kind: "model_ready", name: MODELS.find((m) => m.id === id).name, notify: true });
+          }
         }, 500);
       }
       return { ok: true, downloading: !installed };
@@ -141,8 +229,15 @@
       mock.installed_models = mock.installed_models.filter((m) => m !== id);
       return { ok: true, message: "Deleted" };
     },
-    get_hex_settings: () => ({ ok: true, settings: { ...mock.hex } }),
-    set_hex_setting: (key, value) => { mock.hex[key] = key === "sound_effects" ? value === "on" : value; return { ok: true }; },
+    get_hex_settings: () => ({ ok: true, settings: { ...mock.hex }, choices: {
+      microphone: ["system-default", "Steam Deck Microphone", "USB Headset"].map((value) => ({ value, label: value })),
+      recording_audio_behavior: ["nothing", "duck", "mute"].map((value) => ({ value, label: value })),
+    } }),
+    set_hex_setting: (key, value) => { mock.hex[key] = typeof mock.hex[key] === "boolean" ? value === "on" : value; return { ok: true }; },
+    paste_last: () => { emit({ kind: "done", text: mock.last_text || "Hello from the preview.", notify: true }); return { ok: true }; },
+    get_vocabulary: () => ({ ok: true, terms: [...mock.vocabulary] }),
+    add_vocabulary: (term) => { if (!mock.vocabulary.includes(term)) mock.vocabulary.push(term); return { ok: true }; },
+    remove_vocabulary: (term) => { mock.vocabulary = mock.vocabulary.filter((t) => t !== term); return { ok: true }; },
     install_hex: () => {
       mock.install = { state: "running", stage: "Downloading Hex 3.4.0", error: "", version: "3.4.0", received: 0, total: 9e7 };
       const timer = setInterval(() => {
@@ -152,7 +247,7 @@
       return { ok: true };
     },
     take_over_hex: () => { mock.external = false; return { ok: true }; },
-    restart_hex: () => ({ ok: true }),
+    restart_hex: () => { mock.broken = false; return { ok: true }; },
     test_dictation: (seconds) => new Promise((resolve) => setTimeout(() => resolve({ ok: true, text: "Hello from the preview." }), seconds * 250)),
     start_binding_capture: () => {
       const t0 = Date.now();
@@ -173,6 +268,7 @@
     connect: (version) => ({
       _version: version,
       callable: (route) => async (...args) => backend[route](...args),
+      routerHook: { addRoute: (path, component) => { routes[path] = component; }, removeRoute: (path) => { delete routes[path]; } },
       addEventListener: (event, fn) => ((listeners[event] = listeners[event] || []).push(fn), fn),
       removeEventListener: (event, fn) => { listeners[event] = (listeners[event] || []).filter((f) => f !== fn); },
       toaster: { toast: ({ title, body }) => {
@@ -194,6 +290,8 @@
   };
   document.getElementById("uninstall").onclick = () => { mock.installed = false; mock.install = { state: "idle", stage: "", error: "", version: "", received: 0, total: 0 }; };
   document.getElementById("external").onclick = () => { mock.external = true; };
+  document.getElementById("nomodel").onclick = () => { mock.nomodel = true; };
+  document.getElementById("broken").onclick = () => { mock.broken = true; };
 </script>
 <script type="module">
   const { default: plugin } = await import("../dist/index.js");

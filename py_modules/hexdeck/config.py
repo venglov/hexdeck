@@ -15,6 +15,7 @@ import tempfile
 from typing import Any
 
 from .controller import normalize_binding
+from .languages import AUTO, LANGUAGE_NAMES
 
 logger = logging.getLogger("hexdeck.config")
 
@@ -29,7 +30,12 @@ DEFAULTS: dict[str, Any] = {
     # "type": HexDeck types the transcript on a virtual US keyboard, for
     # games that ignore paste.
     "output": "paste",
+    # Press Enter once the text is in, whichever way it got there.
     "press_enter": False,
+    # The language the player speaks ("auto": whichever, detect it), which
+    # orders the model list and goes to a model that takes a language.
+    # Empty until chosen: the panel then follows Hex's saved language.
+    "speak_language": "",
     # Hold shorter than this and the recording is discarded (Hold mode).
     "min_hold_ms": 300,
     # "auto", or an X display such as ":1".
@@ -73,6 +79,10 @@ def validate(key: str, value: Any) -> Any:
     if key == "display":
         if not isinstance(value, str) or not (value == "auto" or (value.startswith(":") and value[1:].isdigit())):
             raise ValueError("display must be auto or an X display like :1")
+        return value
+    if key == "speak_language":
+        if value not in ("", AUTO) and value not in LANGUAGE_NAMES:
+            raise ValueError("speak_language must be auto or one of Hex's language codes")
         return value
     if key == "hex_path":
         if not isinstance(value, str):

@@ -18,6 +18,7 @@ from __future__ import annotations
 import logging
 import os
 import queue
+import shutil
 import threading
 import time
 from typing import Any, Callable, Optional
@@ -25,7 +26,8 @@ from typing import Any, Callable, Optional
 from . import VERSION
 from .config import Config
 from .controller import ControllerReader
-from .hexcli import EXIT_NO_SPEECH, EXIT_NOT_RUNNING, EXIT_OK, HexCli, HexResult, find_hex, model_file, setting_value
+from .hexcli import (EXIT_NO_SPEECH, EXIT_NOT_RUNNING, EXIT_OK, HexCli, HexResult, find_hex, model_file,
+                     setting_choices, setting_value)
 from .installer import Installer
 from .catalog import all_recommendations, model_facts
 from .languages import LANGUAGE_NAMES, language_info
@@ -41,6 +43,12 @@ STATUS_MAX_AGE = 1.5
 
 # Keyboard shortcuts offered for Hex's own dictation hotkey (external or
 # Bluetooth keyboards). Hex's names: option is Alt, control is Ctrl.
+# Hex's settings the panel shows and changes; everything else stays Hex's.
+HEX_SETTINGS = (
+    "dictation_hotkey", "sound_effects", "microphone", "avoid_bluetooth_microphone",
+    "recording_audio_behavior", "transcription_device",
+)
+
 KEYBOARD_SHORTCUTS = [
     ("option+space", "Alt + Space"),
     ("control+space", "Ctrl + Space"),
@@ -98,6 +106,7 @@ class HexDeck:
         self.last_text = ""
         self.last_error = ""
         self.pill_hidden = False
+        self.download_cancelled = False
 
         self.jobs: "queue.Queue[Optional[tuple]]" = queue.Queue()
         self.stopping = threading.Event()
@@ -221,7 +230,17 @@ class HexDeck:
 
     def _set_status(self, code: int, reply: dict) -> None:
         with self.lock:
+            before = self.status.get("model") or {}
             self.status_code, self.status, self.status_at = code, reply, time.monotonic()
+        # A download that was running has finished: say so, since the panel
+        # is usually closed by then.
+        model = reply.get("model") or {}
+        if code == EXIT_OK and before.get("preparing") and not model.get("preparing"):
+            if model.get("error"):
+                self._fail(f"Model download failed: {model['error']}")
+            elif model.get("installed", True) and not self.download_cancelled:
+                self.emit("model_ready", name=model.get("name") or model.get("id") or "The model")
+            self.download_cancelled = False
 
     # -- Controller ------------------------------------------------------------
 
@@ -354,7 +373,18 @@ class HexDeck:
         text = last_history_text(history.reply) if history.ok else ""
         if text:
             self.last_text = text
+        self._press_enter_after_paste()
         self.emit("done", text=text)
+
+    def _press_enter_after_paste(self) -> None:
+        if not self.config["press_enter"]:
+            return
+        try:
+            # Give Hex's Ctrl+V a moment to land before Enter follows it.
+            time.sleep(0.15)
+            self.keyboard.type("", True)
+        except OSError as error:
+            self._fail(f"Couldn't press Enter: {error.strerror or error}")
 
     # -- RPC: state ------------------------------------------------------------
 
@@ -374,6 +404,9 @@ class HexDeck:
                 "capture": (status.get("capture") or {}).get("state", ""),
                 "model": status.get("model") or {},
                 "log": self.service.log_path,
+                # What Hex holds in memory, and whether it has an update.
+                "memory": status.get("memory_footprint_bytes"),
+                "update": status.get("update") or "",
             }
         return {
             "version": VERSION,
@@ -426,7 +459,15 @@ class HexDeck:
             # picks per language.
             "language_names": dict(LANGUAGE_NAMES),
             "recommendations": all_recommendations(),
+            "disk_free": self._disk_free(),
         }
+
+    def _disk_free(self) -> Optional[int]:
+        """Free bytes where Hex keeps its models (the user's home)."""
+        try:
+            return shutil.disk_usage(self.account.home).free
+        except OSError:
+            return None
 
     def remove_model(self, model_id: str) -> dict:
         """Delete a downloaded model's files (see ``model_files``)."""
@@ -479,20 +520,84 @@ class HexDeck:
         return answer
 
     def cancel_model_download(self) -> dict:
+        self.download_cancelled = True
         return self._answer(self._cli_or_raise().cancel_model())
 
     def get_hex_settings(self) -> dict:
+        """The Hex settings the panel shows, with the choices Hex offers for
+        each (``hex settings list``); a Hex without the list answers one
+        key at a time, without choices."""
         cli = self._cli_or_raise()
-        values = {}
-        for key in ("dictation_hotkey", "sound_effects", "transcription_device"):
-            result = cli.get_setting(key)
-            values[key] = setting_value(result.reply, key) if result.ok else None
-        return {"ok": True, "settings": values}
+        values: dict = {key: None for key in HEX_SETTINGS}
+        choices: dict = {}
+        listed = cli.list_settings()
+        entries = listed.reply.get("settings") if listed.ok else None
+        if isinstance(entries, list) and entries:
+            for entry in entries:
+                if isinstance(entry, dict) and entry.get("key") in values:
+                    values[entry["key"]] = entry.get("value")
+                    found = setting_choices(entry)
+                    if found:
+                        choices[entry["key"]] = found
+        else:
+            for key in HEX_SETTINGS:
+                result = cli.get_setting(key)
+                values[key] = setting_value(result.reply, key) if result.ok else None
+        return {"ok": True, "settings": values, "choices": choices}
 
     def set_hex_setting(self, key: str, value: str) -> dict:
-        if key not in ("dictation_hotkey", "sound_effects", "transcription_device"):
+        if key not in HEX_SETTINGS:
             return {"ok": False, "error": f"HexDeck doesn't change {key}"}
         return self._answer(self._cli_or_raise().set_setting(key, value))
+
+    def paste_last(self) -> dict:
+        """Insert the last dictation again: Hex's Paste Last, or, in typing
+        mode, the virtual keyboard."""
+        if self.config["output"] == "type":
+            if not self.last_text:
+                return {"ok": False, "error": "Nothing has been dictated yet"}
+            try:
+                self.keyboard.type(self.last_text, self.config["press_enter"])
+            except OSError as error:
+                return {"ok": False, "error": f"Couldn't type the text: {error.strerror or error}"}
+            return {"ok": True}
+        answer = self._answer(self._cli_or_raise().paste_last())
+        if answer["ok"]:
+            self._press_enter_after_paste()
+        return answer
+
+    # -- RPC: vocabulary -------------------------------------------------------
+
+    def get_vocabulary(self) -> dict:
+        result = self._cli_or_raise().vocabulary()
+        if not result.ok:
+            return {"ok": False, "error": result.message, "terms": []}
+        terms = [entry["term"] for entry in result.reply.get("entries") or []
+                 if isinstance(entry, dict) and isinstance(entry.get("term"), str)]
+        return {"ok": True, "terms": terms}
+
+    @staticmethod
+    def _term(term: Any) -> str:
+        term = " ".join(str(term).split()) if isinstance(term, str) else ""
+        if not term or len(term) > 80:
+            raise ValueError("A vocabulary term is 1 to 80 characters")
+        if term.startswith("-"):
+            raise ValueError("A vocabulary term can't start with a dash")
+        return term
+
+    def add_vocabulary(self, term: str) -> dict:
+        try:
+            term = self._term(term)
+        except ValueError as error:
+            return {"ok": False, "error": str(error)}
+        return self._answer(self._cli_or_raise().add_vocabulary(term))
+
+    def remove_vocabulary(self, term: str) -> dict:
+        try:
+            term = self._term(term)
+        except ValueError as error:
+            return {"ok": False, "error": str(error)}
+        return self._answer(self._cli_or_raise().remove_vocabulary(term))
 
     def install_hex(self) -> dict:
         if not self.installer.start():

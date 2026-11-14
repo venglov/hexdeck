@@ -8,6 +8,8 @@ export type Config = {
   trigger_mode: "hold" | "toggle";
   output: "paste" | "type";
   press_enter: boolean;
+  /** "" until chosen (the panel then follows Hex's saved language), "auto", or a language code. */
+  speak_language: string;
   min_hold_ms: number;
   display: string;
   hide_hex_pill: boolean;
@@ -41,6 +43,10 @@ export type State = {
     capture: string;
     model: HexModelReport;
     log: string;
+    /** Bytes Hex holds in memory, when it says. */
+    memory?: number | null;
+    /** current | checking | available | unavailable, when it says. */
+    update?: string;
   };
   controller: { device: string | null; error: string; held: string[] };
   install: { state: "idle" | "running" | "done" | "failed"; stage: string; error: string; version: string; received: number; total: number };
@@ -73,6 +79,9 @@ export type HexModel = {
   description: string;
   /** "No wait" / "Under 1 s wait" / "2 s wait" after 30 s of talking; null when unknown. */
   wait: string | null;
+  wait_seconds?: number | null;
+  /** Whether the model reads Hex's vocabulary: prompt | bias | none, when Hex says. */
+  vocabulary?: string;
 };
 
 /** Hex's picks per language, best first, with the picker's badge. */
@@ -82,7 +91,11 @@ export type ModelList = Answer & {
   models: HexModel[];
   language_names?: Record<string, string>;
   recommendations?: Record<string, [string, Role][]>;
+  /** Free bytes where Hex keeps its models. */
+  disk_free?: number | null;
 };
+
+export type Choice = { value: string; label: string };
 
 export const ROLE_LABELS: Record<Role, string> = {
   recommended: "Recommended",
@@ -94,7 +107,8 @@ export const ROLE_LABELS: Record<Role, string> = {
 export type Capture = { phase: "release" | "listening" | "holding" | "captured" | "cancelled"; buttons: string[]; error: string };
 
 export type HexEvent = {
-  kind: "recording" | "transcribing" | "done" | "nothing" | "cancelled" | "error" | "installed" | "binding";
+  kind: "recording" | "transcribing" | "done" | "nothing" | "cancelled" | "error" | "installed" | "binding" | "model_ready";
+  name?: string;
   notify: boolean;
   message?: string;
   text?: string;
@@ -118,7 +132,11 @@ export const listModels = async (): Promise<ModelList> => {
 export const selectModel = callable<[modelId: string, language: string], Answer & { downloading?: boolean }>("select_model");
 export const removeModel = callable<[modelId: string], Answer>("remove_model");
 export const cancelModelDownload = callable<[], Answer>("cancel_model_download");
-export const getHexSettings = callable<[], Answer & { settings: Record<string, unknown> }>("get_hex_settings");
+export const getHexSettings = callable<[], Answer & { settings: Record<string, unknown>; choices?: Record<string, Choice[]> }>("get_hex_settings");
+export const pasteLast = callable<[], Answer>("paste_last");
+export const getVocabulary = callable<[], Answer & { terms: string[] }>("get_vocabulary");
+export const addVocabulary = callable<[term: string], Answer>("add_vocabulary");
+export const removeVocabulary = callable<[term: string], Answer>("remove_vocabulary");
 export const setHexSetting = callable<[key: string, value: string], Answer>("set_hex_setting");
 export const installHex = callable<[], Answer>("install_hex");
 export const takeOverHex = callable<[], Answer>("take_over_hex");
@@ -131,6 +149,10 @@ export const cancelBindingCapture = callable<[], void>("cancel_binding_capture")
 export const bindingLabel = (buttons: string[]) => (buttons.length ? buttons.join(" + ") : "None");
 
 export const megabytes = (bytes: number) => `${(bytes / 1048576).toFixed(0)} MB`;
+
+/** "412 MB" / "21 GB", in the decimal units Hex's sizes use. */
+export const bytesLabel = (bytes: number) =>
+  bytes >= 1e9 ? `${(bytes / 1e9).toFixed(bytes >= 1e10 ? 0 : 1)} GB` : `${Math.round(bytes / 1e6)} MB`;
 
 
 /** The languages a model understands, from the backend or its own list. */
