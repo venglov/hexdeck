@@ -1,4 +1,4 @@
-"""What a Hex model does with its language setting.
+"""What a Hex model does with its language setting, and which languages it knows.
 
 ``hex model list --json`` gives each model's languages but not whether the
 model detects the language itself, or whether the language it is set to
@@ -24,14 +24,45 @@ from typing import Optional
 
 AUTO = "auto"
 
-# Hex's LANGUAGES (src/transcription/languages.rs), in its order, without
-# Auto. A model that lists "*" (Whisper) takes any of them.
-HEX_LANGUAGES = (
-    "en zh yue ja ko es fr de pt it ar hi bn vi ru uk nl pl tr sv da no fi cs el ro hu id ms th "
-    "fa he bg hr et lv lt mt sk sl mk fil nn ca ta ur la mi ml cy te sr az kn br eu is hy ne mn "
-    "bs kk sq sw gl mr pa si km sn yo so af oc ka be tg sd gu am yi lo uz fo ht ps tk sa lb my "
-    "bo tl mg as tt haw ln ha ba"
-).split()
+# Hex's LANGUAGES (src/transcription/languages.rs): the languages Settings
+# offers, in its order and with its names, without Auto. A model that lists
+# "*" (Whisper) takes every one of them.
+LISTED_LANGUAGES = (
+    ("en", "English"), ("zh", "Mandarin Chinese"), ("yue", "Cantonese"), ("ja", "Japanese"),
+    ("ko", "Korean"), ("es", "Spanish"), ("fr", "French"), ("de", "German"),
+    ("pt", "Portuguese"), ("it", "Italian"), ("ar", "Arabic"), ("hi", "Hindi"),
+    ("bn", "Bangla"), ("vi", "Vietnamese"), ("ru", "Russian"), ("uk", "Ukrainian"),
+    ("nl", "Dutch"), ("pl", "Polish"), ("tr", "Turkish"), ("sv", "Swedish"),
+    ("da", "Danish"), ("no", "Norwegian"), ("fi", "Finnish"), ("cs", "Czech"),
+    ("el", "Greek"), ("ro", "Romanian"), ("hu", "Hungarian"), ("id", "Indonesian"),
+    ("ms", "Malay"), ("th", "Thai"), ("fa", "Persian"), ("he", "Hebrew"),
+    ("bg", "Bulgarian"), ("hr", "Croatian"), ("et", "Estonian"), ("lv", "Latvian"),
+    ("lt", "Lithuanian"), ("mt", "Maltese"), ("sk", "Slovak"), ("sl", "Slovenian"),
+    ("mk", "Macedonian"), ("fil", "Filipino"),
+)
+
+# Hex's OTHER_LANGUAGES: names for the rest of Whisper's languages, which
+# Settings lists only for a model that declares them (an import).
+OTHER_LANGUAGES = (
+    ("nn", "Norwegian Nynorsk"), ("ca", "Catalan"), ("ta", "Tamil"), ("ur", "Urdu"),
+    ("la", "Latin"), ("mi", "Maori"), ("ml", "Malayalam"), ("cy", "Welsh"),
+    ("te", "Telugu"), ("sr", "Serbian"), ("az", "Azerbaijani"), ("kn", "Kannada"),
+    ("br", "Breton"), ("eu", "Basque"), ("is", "Icelandic"), ("hy", "Armenian"),
+    ("ne", "Nepali"), ("mn", "Mongolian"), ("bs", "Bosnian"), ("kk", "Kazakh"),
+    ("sq", "Albanian"), ("sw", "Swahili"), ("gl", "Galician"), ("mr", "Marathi"),
+    ("pa", "Punjabi"), ("si", "Sinhala"), ("km", "Khmer"), ("sn", "Shona"),
+    ("yo", "Yoruba"), ("so", "Somali"), ("af", "Afrikaans"), ("oc", "Occitan"),
+    ("ka", "Georgian"), ("be", "Belarusian"), ("tg", "Tajik"), ("sd", "Sindhi"),
+    ("gu", "Gujarati"), ("am", "Amharic"), ("yi", "Yiddish"), ("lo", "Lao"),
+    ("uz", "Uzbek"), ("fo", "Faroese"), ("ht", "Haitian Creole"), ("ps", "Pashto"),
+    ("tk", "Turkmen"), ("sa", "Sanskrit"), ("lb", "Luxembourgish"), ("my", "Burmese"),
+    ("bo", "Tibetan"), ("tl", "Tagalog"), ("mg", "Malagasy"), ("as", "Assamese"),
+    ("tt", "Tatar"), ("haw", "Hawaiian"), ("ln", "Lingala"), ("ha", "Hausa"),
+    ("ba", "Bashkir"), ("jw", "Javanese"), ("su", "Sundanese"),
+)
+
+LISTED_CODES = tuple(code for code, _ in LISTED_LANGUAGES)
+LANGUAGE_NAMES = {code: name for code, name in LISTED_LANGUAGES + OTHER_LANGUAGES}
 
 # id -> (detects the language, takes a language). From Hex's catalog.
 MODEL_TRAITS = {
@@ -55,28 +86,39 @@ MODEL_TRAITS = {
 }
 
 
+def language_name(code: str) -> str:
+    """Hex's English name for ``code``, or the code when Hex has none."""
+    return "Automatic" if code == AUTO else LANGUAGE_NAMES.get(code, code)
+
+
 def model_languages(model: dict) -> list:
-    """The model's own languages, with Whisper's "*" spelled out."""
-    languages = [code for code in model.get("languages") or [] if isinstance(code, str)]
-    if "*" in languages:
-        listed = [code for code in languages if code != "*"]
-        return list(HEX_LANGUAGES) + [code for code in listed if code not in HEX_LANGUAGES]
-    return [code for code in languages if code != AUTO]
+    """The languages Hex offers with the model, as its Settings order them
+    (``ModelDefinition::language_choices``): the listed languages it knows
+    ("*" is all of them), then any other language it declares."""
+    declared = [code for code in model.get("languages") or [] if isinstance(code, str) and code != AUTO]
+    anything = "*" in declared
+    listed = [code for code in LISTED_CODES if anything or code in declared]
+    others = [code for code in declared if code != "*" and code not in LISTED_CODES]
+    return listed + list(dict.fromkeys(others))
 
 
 def language_info(model: dict) -> dict:
-    """``language_mode``, ``detects_language`` (``None`` when unknown), and
-    ``language_choices`` (Auto first where the model takes it)."""
+    """``language_mode``, ``detects_language`` (``None`` when unknown),
+    ``language_choices`` (Auto first where the model takes it), and
+    ``supported_languages`` (what it understands, whatever the setting)."""
     languages = model_languages(model)
     traits: Optional[tuple] = MODEL_TRAITS.get(str(model.get("id", "")))
     if traits is None:
         detects = AUTO in (model.get("languages") or []) or None
         choices = ([AUTO] if detects else []) + languages
         mode = "choice" if len(choices) > 1 else "fixed"
-        return {"language_mode": mode, "detects_language": detects, "language_choices": choices}
+        return {"language_mode": mode, "detects_language": detects, "language_choices": choices,
+                "supported_languages": languages}
     detects, takes_language = traits
     if detects and not takes_language:
-        return {"language_mode": "automatic", "detects_language": True, "language_choices": [AUTO]}
+        return {"language_mode": "automatic", "detects_language": True, "language_choices": [AUTO],
+                "supported_languages": languages}
     choices = ([AUTO] if detects else []) + (languages if takes_language else languages[:1])
     mode = "choice" if takes_language and len(choices) > 1 else "fixed"
-    return {"language_mode": mode, "detects_language": detects, "language_choices": choices}
+    return {"language_mode": mode, "detects_language": detects, "language_choices": choices,
+            "supported_languages": languages}

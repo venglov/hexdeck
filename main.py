@@ -88,6 +88,18 @@ class Plugin:
     async def set_hex_setting(self, key, value):
         return await self._call("set_hex_setting", key, value)
 
+    async def paste_last(self):
+        return await self._call("paste_last")
+
+    async def get_vocabulary(self):
+        return await self._call("get_vocabulary")
+
+    async def add_vocabulary(self, term):
+        return await self._call("add_vocabulary", term)
+
+    async def remove_vocabulary(self, term):
+        return await self._call("remove_vocabulary", term)
+
     async def install_hex(self):
         return await self._call("install_hex")
 

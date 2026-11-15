@@ -183,6 +183,22 @@ class HexCli:
     def set_setting(self, key: str, value: str) -> HexResult:
         return self.run("settings", "set", key, value, timeout=10)
 
+    def list_settings(self) -> HexResult:
+        """Every setting, with its ``choices`` where it has them."""
+        return self.run("settings", "list", timeout=10)
+
+    def paste_last(self) -> HexResult:
+        return self.run("paste-last", timeout=20)
+
+    def vocabulary(self) -> HexResult:
+        return self.run("vocabulary", "list", timeout=10)
+
+    def add_vocabulary(self, term: str) -> HexResult:
+        return self.run("vocabulary", "add", term, timeout=10)
+
+    def remove_vocabulary(self, term: str) -> HexResult:
+        return self.run("vocabulary", "remove", term, timeout=10)
+
     def quit(self, force: bool = False) -> HexResult:
         args = ["quit"] + (["--force"] if force else [])
         return self.run(*args, timeout=20)
@@ -195,6 +211,21 @@ def model_file(reply: dict) -> Optional[tuple]:
     if len(parts) < 4 or parts[0] not in ("installed", "missing"):
         return None
     return parts[0] == "installed", "\t".join(parts[3:])
+
+
+def setting_choices(entry: dict) -> list:
+    """A setting's ``choices`` as ``{"value", "label"}`` pairs; Hex lists
+    them as plain values or as objects."""
+    choices = []
+    for choice in entry.get("choices") or []:
+        if isinstance(choice, dict):
+            value = choice.get("value", choice.get("id"))
+            label = choice.get("label") or choice.get("name") or value
+        else:
+            value = label = choice
+        if isinstance(value, (str, int, float)) and not isinstance(value, bool):
+            choices.append({"value": str(value), "label": str(label)})
+    return choices
 
 
 def setting_value(reply: dict, key: str):

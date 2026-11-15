@@ -7,21 +7,37 @@ Local voice dictation in Steam Deck **Game Mode**, powered by
 let go, and the text lands in the game or text field you're in. Everything is
 transcribed on the Deck.
 
-From the Quick Access Menu (`...` → HexDeck) you can:
+The **Quick Access panel** (`...` → HexDeck) is short on purpose. A status
+card says what dictation is doing and what to press (*Ready · Hold L4 + R4
+and speak*), shows the last thing it heard, and, when something is in the
+way, offers the one button that fixes it (*Install Hex*, *Choose a model*,
+*Restart Hex*). Under it are the things that change mid-game:
 
-- **pick Hex's speech model** (Parakeet, Whisper, …) and its language;
-  models that aren't downloaded yet download in the background, with progress,
-  and **Downloaded models** deletes the ones you no longer use;
-- see what the language setting really does: models like Parakeet v3 detect
-  the language themselves and show **Automatic**; models that take a language
-  (Whisper, Nemotron, Qwen3-ASR, …) offer **Automatic (detect)** first;
-- **change the dictation binding**: any 1–4 controller buttons, captured by
-  holding them (default **L4 + R4**, the two back grips), and choose
-  *Hold to talk* or *Press to start and stop*;
-- set **Hex's keyboard shortcut** for an external keyboard;
-- choose how text arrives: **Pasting (Hex)**, any language, or **Typing
-  (US keyboard)** for games that ignore paste, optionally pressing Enter;
-- install Hex, test dictation, and turn sounds and notifications on or off.
+- **Dictation** on or off (off stops Hex and frees its memory);
+- **Model**, to switch between the models you've downloaded, and its
+  **Language** where the model takes one;
+- **Insert text by** *Pasting* or *Typing*, and **Press Enter after**;
+- **Try it** (a four-second test) and **Paste again** (inserts the last
+  dictation once more if it missed the field).
+
+**All settings** opens HexDeck's full-screen page, with five tabs (L1/R1):
+
+- **Models**: say which language you speak and Hex's picks for it appear as
+  cards (*Recommended*, *Fastest*, *Fewest wrong words*, *Reads your
+  vocabulary*), followed by the other models that understand it, with their
+  wait, languages and size in columns. **A** uses or downloads a model, **X**
+  deletes it (after a confirmation), **Y** shows every language it knows.
+  Downloads run in the background with progress in the row and in the
+  panel, and a notification when the model is ready. Models for other
+  languages stay folded away.
+- **Controls**: the binding (back-grip presets, or record any 1–4 buttons
+  by holding them; default **L4 + R4**), *Hold to talk* or *Press to start
+  and stop*, and Hex's keyboard shortcut for an external keyboard.
+- **Text**: pasting or typing, Enter, and Hex's **vocabulary** (names and
+  terms it should recognize).
+- **Audio and feedback**: Hex's microphone, what happens to game audio
+  while recording, Hex's tones and recording pill, and Steam notifications.
+- **Help**: what's running where, Restart Hex, the game display, logs.
 
 ## Install
 
@@ -33,8 +49,9 @@ Needs [Decky Loader](https://decky.xyz/).
    **Install Hex**: HexDeck downloads the official Linux build into
    `~/.local/bin/hex`, checking its size, SHA-256 and Ed25519 release
    signature exactly as Hex's own installer does.
-4. Under **Speech model**, choose a model. The first one downloads (about
-   0.5–1.6 GB); dictation is ready when the status says *Listening*.
+4. Select **Choose a model**, say which language you speak, and press **A**
+   on one of Hex's picks. It downloads (about 0.25–2.4 GB); dictation is
+   ready when the panel says *Ready*.
 5. Focus a text field, hold **L4 + R4**, speak, let go.
 
 An existing Hex install in `~/.local/bin/hex` (from Hex's install script) is
@@ -57,7 +74,7 @@ used as is, with its settings and models.
   restarts Hex if it crashes, and quits it when the plugin unloads.
 - **Everything goes through Hex's control CLI** (`hex status`,
   `hex dictation start|stop|cancel`, `hex model list|use|install|cancel`,
-  `hex settings get|set`), Hex's stable, versioned contract, documented in
+  `hex settings list|get|set`, `hex paste-last`, `hex vocabulary`), Hex's stable, versioned contract, documented in
   Hex's `docs/cli.md`. The one exception is **deleting a downloaded model**:
   Hex's Linux CLI can't do it yet, so HexDeck asks `hex model status <id>`
   where the file is and deletes it the way Hex's macOS Settings do (taking
@@ -89,8 +106,8 @@ Hex's own settings (model, language, sounds, shortcut) live in Hex's
   answers (for example your desktop Hex's systemd unit). HexDeck uses it; if
   text doesn't reach games, select **Run Hex for Game Mode**.
 - **Nothing is pasted in a game**: try **Insert text by → Typing**, or pick
-  the display under **Advanced → Game display**.
-- **Logs**: Hex's output is in the path shown under Advanced (`hex-service.log`
+  the display under **All settings → Help → Game display**.
+- **Logs**: Hex's output is in the path shown on the Help tab (`hex-service.log`
   in Decky's log folder for HexDeck); the plugin logs to Decky's plugin log.
   `hex status` and `hex logs -n 40` in Desktop Mode's terminal also work.
 
@@ -115,9 +132,12 @@ Layout:
 | `py_modules/hexdeck/hexcli.py` | Runs `hex … --json` as the desktop user |
 | `py_modules/hexdeck/session.py` | Desktop account, environment, Gamescope display discovery |
 | `py_modules/hexdeck/controller.py`, `deck_hid.py` | Controller reader, combo detection, binding capture |
+| `py_modules/hexdeck/languages.py`, `catalog.py` | What Hex's picker says about each model (languages, descriptions, wait, picks), mirrored from Hex |
 | `py_modules/hexdeck/installer.py`, `ed25519.py` | Verified Hex install |
 | `py_modules/hexdeck/typer.py` | uinput virtual keyboard |
-| `src/` | Quick Access panel (React, `@decky/ui`) |
+| `src/panel.tsx`, `status.ts` | Quick Access panel and its status card |
+| `src/page.tsx`, `src/tabs/` | Full-screen settings page: Models, Controls, Text, Audio and feedback, Help |
+| `src/state.ts`, `api.ts` | Shared state hook and backend calls |
 
 ### Not yet verified on hardware
 
@@ -127,4 +147,7 @@ mock backend, but these need a Steam Deck to confirm:
 - Hex's X11 paste into games under Gamescope's Xwayland;
 - the uinput keyboard being picked up by Gamescope;
 - Hex's microphone and Vulkan inference as the `deck` user from Decky;
-- the installer against the live release server.
+- the installer against the live release server;
+- the full-screen page (route, tabs, scrolling, modals and the A/X/Y
+  actions) in Steam's own UI, and Hex's `settings list` choices for the
+  microphone and game-audio settings.

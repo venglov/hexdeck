@@ -17,5 +17,6 @@ deploy:
 	scripts/deploy.sh $(DECK)
 
 preview: build
+	python3 dev/preview_models.py
 	@echo "Open http://localhost:8765/dev/preview.html"
 	python3 -m http.server 8765
